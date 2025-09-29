@@ -1,0 +1,20 @@
+Tool Used: ChatGPT (OpenAI)
+
+Motivation:
+I used ChatGPT to help debug Docker container networking issues, fix Flask code for Service1, and structure the exercise report.
+
+How it helped:
+- Provided step-by-step guidance for Docker Compose setup.
+- Suggested corrections for using service names (`service2`, `storage`) instead of `localhost`.
+- Helped in formatting persistent storage logs and ensuring they matched across services.
+- Assisted in writing and formatting the final report (Report.md).
+
+Limitations:
+- Could not directly run or test Docker commands; I had to execute and verify them myself.
+- Some adjustments were needed for macOS-specific paths.
+- Advice on report formatting sometimes required refinement.
+
+Missed/Incomplete:
+- Did not initially provide the exact report structure required; I had to adjust sections later.
+- Mermaid diagrams and markdown formatting required manual verification in VS Code.
+

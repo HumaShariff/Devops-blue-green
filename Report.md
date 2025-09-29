@@ -1,26 +1,35 @@
 # COMP.SE.140 Exercise1 Report
 
+
 ## 1. Basic Information
-- **Hardware / VM:** MacBook Pro M1
-- **OS:** macOS 13.5
+- **Hardware / VM:** MacBook Air M2
+- **OS:** macOS 12.5
 - **Docker Version:** 24.0.5
 - **Docker Compose Version:** 2.23.1
 
 ## 2. Service Diagram
 
-      ┌───────────┐
-      │  Service1 │
-      │  0.0.0.0:8199 │
-      └─────┬─────┘
-            │
-  ┌─────────┴─────────┐
-  │                   │
+```mermaid
+flowchart TD
+    Service1["Service1<br>0.0.0.0:8199"]
+    Service2["Service2"]
+    Storage["Storage"]
+    vStorage["vStorage (host-mounted)"]
 
-- **Service Names:**
-  - Service1: `compse140-exercise1-service1-1`
-  - Service2: `compse140-exercise1-service2-1`
-  - Storage: `compse140-exercise1-storage-1`
-- **vStorage:** Host-mounted volume (`./vstorage/log.txt`)
+    Service1 --> Service2
+    Service1 --> Storage
+    Service1 --> vStorage
+    Service2 --> Storage
+    Service2 --> vStorage
+Service Names:
+
+Service1: compse140-exercise1-service1-1
+
+Service2: compse140-exercise1-service2-1
+
+Storage: compse140-exercise1-storage-1
+
+vStorage: Host-mounted volume (./vstorage/log.txt)
 
 ---
 
@@ -88,14 +97,3 @@ b75f532c443a   compse140-exercise1_default   bridge    local
 544d806fefcb   host                          host      local
 e4393ed778da   none                          null      local
 
-8. Optional LLM Report
-
-Tool Used: ChatGPT
-
-Motivation: Helped in debugging Flask code, Docker networking, and report structure.
-
-How it helped: Provided step-by-step guidance and corrected Service1 code to handle vStorage and Service2 forwarding.
-
-Limitations: Could not directly run or test Docker commands; advice had to be manually verified.
-
-Missed/Incomplete: Minor adjustments required for macOS-specific paths and testing.
