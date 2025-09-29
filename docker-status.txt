@@ -1,0 +1,10 @@
+
+CONTAINER ID   IMAGE                          COMMAND                  CREATED          STATUS          PORTS                    NAMES
+7f277a9ebd80   compse140-exercise1-service1   "python app.py"          35 seconds ago   Up 34 seconds   0.0.0.0:8199->5000/tcp   compse140-exercise1-service1-1
+4f3a8d16a9b0   compse140-exercise1-service2   "docker-entrypoint.s…"   35 seconds ago   Up 34 seconds                            compse140-exercise1-service2-1
+3e3a75b2cc6f   compse140-exercise1-storage    "python app.py"          35 seconds ago   Up 34 seconds                            compse140-exercise1-storage-1
+NETWORK ID     NAME                          DRIVER    SCOPE
+2ee8c07098b6   bridge                        bridge    local
+b75f532c443a   compse140-exercise1_default   bridge    local
+544d806fefcb   host                          host      local
+e4393ed778da   none                          null      local

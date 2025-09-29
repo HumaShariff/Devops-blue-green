@@ -1,0 +1,24 @@
+services:
+  service1:
+    build: ./service1
+    ports:
+      - "8199:5000"           
+    volumes:
+      - ./vstorage:/app/vstorage  
+    depends_on:
+      - service2
+      - storage
+
+  service2:
+    build: ./service2
+    volumes:
+      - ./vstorage:/app/vstorage
+    depends_on:
+      - storage
+
+  storage:
+    build: ./storage
+    volumes:
+      - storage_data:/data    
+volumes:
+  storage_data:
