@@ -1,0 +1,40 @@
+stages:
+  - build
+  - docker
+  - smoketest
+
+variables:
+  DOCKER_DRIVER: overlay2
+  DOCKER_HOST: "tcp://docker:2375"  # Required for docker-in-docker
+
+build:
+  stage: build
+  image: openjdk:17
+  script:
+    - mkdir -p build
+    - javac -d build src/*.java
+  artifacts:
+    paths:
+      - build/
+
+docker_build:
+  stage: docker
+  image: docker:latest
+  services:
+    - docker:dind
+  script:
+    - docker build -t average-app -f docker/Dockerfile .
+  dependencies:
+    - build
+
+smoketest:
+  stage: smoketest
+  image: docker:latest
+  services:
+    - docker:dind
+  script:
+    - chmod +x tests/test_smoke.sh
+    - ./tests/test_smoke.sh
+  dependencies:
+    - docker_build
+
