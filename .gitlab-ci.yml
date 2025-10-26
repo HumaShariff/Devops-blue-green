@@ -2,11 +2,17 @@ stages:
   - build
   - docker
   - smoketest
+  - scan
+  - deliver
 
 variables:
   DOCKER_DRIVER: overlay2
-  DOCKER_HOST: "unix:///runner/services/docker/docker.sock"  # Required for docker-in-docker
+  DOCKER_HOST: "unix:///runner/services/docker/docker.sock"
+  DOCKER_TLS_CERTDIR: ""
 
+# -------------------
+# 1️⃣ Build stage
+# -------------------
 build:
   stage: build
   image: openjdk:17
@@ -17,6 +23,9 @@ build:
     paths:
       - build/
 
+# -------------------
+# 2️⃣ Docker build stage
+# -------------------
 docker_build:
   stage: docker
   image: docker:latest
@@ -27,6 +36,9 @@ docker_build:
   dependencies:
     - build
 
+# -------------------
+# 3️⃣ Smoke test stage
+# -------------------
 smoketest:
   stage: smoketest
   image: docker:latest
@@ -35,6 +47,37 @@ smoketest:
   script:
     - chmod +x tests/test_smoke.sh
     - ./tests/test_smoke.sh
+  dependencies:
+    - docker_build
+
+# -------------------
+# 4️⃣ Scan stage
+# -------------------
+scan:
+  stage: scan
+  image: aquasec/trivy:latest
+  script:
+    - trivy image --severity HIGH,CRITICAL -f json -o trivy-report.json average-app:latest
+  dependencies:
+    - docker_build
+  artifacts:
+    paths:
+      - trivy-report.json
+
+# -------------------
+# 5️⃣ Deliver stage (only for branch "deliver")
+# -------------------
+deliver:
+  stage: deliver
+  image: docker:latest
+  services:
+    - docker:dind
+  script:
+    - echo "$HARBOR_PASSWORD" | docker login harbor.treok.eu -u "$HARBOR_USERNAME" --password-stdin
+    - docker tag average-app:latest harbor.treok.eu/devops_compcs140/compse140-test-service1:latest
+    - docker push harbor.treok.eu/devops_compcs140/compse140-test-service1:latest
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "deliver"'
   dependencies:
     - docker_build
 
