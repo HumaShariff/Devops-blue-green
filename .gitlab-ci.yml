@@ -72,9 +72,18 @@ smoketest:
 # 5️⃣ Scan Stage
 scan:
   stage: scan
-  image: aquasec/trivy:0.67.1
+  image: docker:26
+  services:
+    - docker:dind
+  variables:
+    DOCKER_HOST: "tcp://docker:2375"
+    DOCKER_TLS_CERTDIR: ""
+  needs: ["package"]
   script:
-    - trivy image --severity HIGH,CRITICAL -f json -o trivy-report.json average-app:latest
+    # Check built images
+    - docker images
+    # Run Trivy scan on the built image
+    - docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:0.67.1 image --severity HIGH,CRITICAL -f json -o trivy-report.json average-app:latest
     - cat trivy-report.json
   allow_failure: false
 
