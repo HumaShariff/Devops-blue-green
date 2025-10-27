@@ -104,11 +104,12 @@ deliver:
   image: docker:26
   services:
     - docker:dind
-  needs: ["scan"]
+  needs: ["package"]
 # rules:
  #   - if: '$CI_COMMIT_BRANCH == \"deliver\"'
   script:
-    - "echo $HARBOR_PASSWORD | docker login harbor.treok.eu -u $HARBOR_USERNAME --password-stdin"
-    - "docker tag average-app:latest harbor.treok.eu/$HARBOR_USERNAME/average-app:latest"
-    - "docker push harbor.treok.eu/$HARBOR_USERNAME/average-app:latest"
-
+    - echo "$HARBOR_PASSWORD" | docker login harbor.treok.eu -u "$HARBOR_USERNAME" --password-stdin
+    - docker push harbor.treok.eu/devops_compcs140/compse140-test-service1:latest
+    #- "docker tag average-app:latest harbor.treok.eu/$HARBOR_USERNAME/average-app:latest"
+    #- "docker push harbor.treok.eu/$HARBOR_USERNAME/average-app:latest"
+    
