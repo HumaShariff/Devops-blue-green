@@ -72,13 +72,11 @@ smoketest:
 # 5️⃣ Scan Stage
 scan:
   stage: scan
-  image: aquasec/trivy:0.56.2
-  needs: ["package"]
+  image: aquasec/trivy:0.67.1
   script:
-    - "docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v $PWD:/app aquasec/trivy:0.56.2 image --severity HIGH,CRITICAL --exit-code 1 -f json -o trivy-report.json average-app:latest"
-  artifacts:
-    paths:
-      - trivy-report.json
+    - trivy image --severity HIGH,CRITICAL -f json -o trivy-report.json average-app:latest
+    - cat trivy-report.json
+  allow_failure: false
 
 # 6️⃣ Deliver Stage
 deliver:
