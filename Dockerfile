@@ -1,15 +1,19 @@
-# Use lightweight Java runtime
-FROM eclipse-temurin:21-jre-alpine
+# Use a small JDK base image
+FROM amazoncorretto:21-alpine
 
 # Set working directory
 WORKDIR /app
 
-# Copy compiled class files
-COPY ../build/ /app/
+# Copy compiled classes (optional: compile inside Docker)
+COPY build/ ./build
+COPY src/AverageServer.java ./src/
 
-# Expose the server port
+# Compile Java app
+RUN javac src/AverageServer.java -d build
+
+# Expose the port your server uses
 EXPOSE 8199
 
-# Run the server
-CMD ["java", "-cp", "/app", "AverageServer"]
+# Command to run the server
+CMD ["java", "-cp", "build", "AverageServer"]
 
