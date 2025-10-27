@@ -83,3 +83,4 @@ deliver:
     - "docker tag average-app:latest harbor.treok.eu/$HARBOR_USERNAME/average-app:latest"
     - "docker push harbor.treok.eu/$HARBOR_USERNAME/average-app:latest"
 
+# trigger pipeline
