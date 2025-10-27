@@ -6,8 +6,14 @@ stages:
   - scan
   - deliver
 
+#variables:
+#  DOCKER_HOST: "unix:///var/run/docker.sock"
+
 variables:
-  DOCKER_HOST: "unix:///var/run/docker.sock"
+  DOCKER_HOST: "tcp://docker:2375"
+  DOCKER_TLS_CERTDIR: ""
+  DOCKER_DRIVER: overlay2
+  DOCKER_CERT_PATH: ""
 
 # 1️⃣ Build Stage
 build:
