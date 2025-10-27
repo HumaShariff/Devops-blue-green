@@ -51,11 +51,12 @@ package:
 # 4️⃣ Smoketest Stage
 smoketest:
   stage: smoketest
-  image: amazoncorretto:21-alpine
+  image: docker:26
   services:
     - docker:dind
   needs: ["package"]
   script:
+    - "apk add --no-cache curl"     # ✅ install curl (Alpine package manager)
     - "docker build -t average-app ."
     - "docker run -d -p 8199:8199 --name average-test average-app"
     - "sleep 5"
