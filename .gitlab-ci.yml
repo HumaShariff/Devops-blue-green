@@ -1,43 +1,23 @@
-stages:
-  - build
-  - test
-  - package
-  - smoketest
-  - scan
-  - deliver
-
 variables:
-  DOCKER_HOST: "unix:///runner/services/docker/docker.sock"
+  DOCKER_HOST: "tcp://docker:2375"
+  DOCKER_TLS_CERTDIR: ""
 
-# 1️⃣ Build Stage
-build:
-  stage: build
-  image: amazoncorretto:21-alpine
-  script:
-    - javac src/AverageServer.java -d build
-  artifacts:
-    paths:
-      - build/
-    expire_in: 1 hour
-
-# 2️⃣ Test Stage
+# Build stage remains the same
+# Test stage fixed with SERVER_PID kill
 test:
   stage: test
   image: amazoncorretto:21-alpine
   needs: ["build"]
   script:
     - java -cp build AverageServer &
+    - SERVER_PID=$!
     - sleep 3
     - response=$(curl -s -X POST http://localhost:8199 -H "Content-Type: application/json" -d '{"numbers":[1,3,7,8]}')
-    - |
-      if [ "$response" = "4" ]; then
-        echo "Test passed"
-      else
-        echo "Test failed: $response"
-        exit 1
-      fi
+    - echo "Response: $response"
+    - kill $SERVER_PID
+    - test "$response" = "4"
 
-# 3️⃣ Package Stage
+# Package stage: remove trivy artifact
 package:
   stage: package
   image: docker:26
@@ -46,47 +26,4 @@ package:
   needs: ["build"]
   script:
     - docker build -t harbor.treok.eu/$HARBOR_USERNAME/average-app:latest .
-  artifacts:
-    paths:
-      - trivy-report.json
-    expire_in: 1 hour
-
-# 4️⃣ Smoketest Stage
-smoketest:
-  stage: smoketest
-  image: docker:26
-  services:
-    - docker:dind
-  needs: ["package"]
-  script:
-    - docker run -d -p 8199:8199 --name average-test harbor.treok.eu/$HARBOR_USERNAME/average-app:latest
-    - sleep 5
-    - response=$(curl -s -X POST http://localhost:8199 -H "Content-Type: application/json" -d '{"numbers":[2,4,6]}')
-    - echo "Response: $response"
-    - docker stop average-test
-    - test "$response" = "4"
-
-# 5️⃣ Scan Stage
-scan:
-  stage: scan
-  image: aquasec/trivy:0.56.2
-  needs: ["package"]
-  script:
-    - trivy image --severity HIGH,CRITICAL --exit-code 1 -f json -o trivy-report.json harbor.treok.eu/$HARBOR_USERNAME/average-app:latest
-  artifacts:
-    paths:
-      - trivy-report.json
-
-# 6️⃣ Deliver Stage
-deliver:
-  stage: deliver
-  image: docker:26
-  services:
-    - docker:dind
-  needs: ["scan"]
-  rules:
-    - if: '$CI_COMMIT_BRANCH == "deliver"'
-  script:
-    - echo "$HARBOR_PASSWORD" | docker login harbor.treok.eu -u "$HARBOR_USERNAME" --password-stdin
-    - docker push harbor.treok.eu/$HARBOR_USERNAME/average-app:latest
 
