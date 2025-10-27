@@ -51,7 +51,7 @@ package:
 # 4️⃣ Smoketest Stage
 smoketest:
   stage: smoketest
-  image: docker:26
+  image: amazoncorretto:21-alpine
   services:
     - docker:dind
   needs: ["package"]
