@@ -1,0 +1,31 @@
+#### Used LLM Tool
+ ChatGPT (GPT-5) was used during the completion of this assignment.
+
+### Reason to Use LLM
+The motivation to use ChatGPT was to understand and troubleshoot GitLab CI/CD pipeline issues related to Docker, Trivy scanning, and Harbor delivery. I used the model mainly as a learning companion to clarify errors, understand configuration logic, and improve the documentation for the report.
+This exercise turned to be much more difficult than I thouht. I used it for learning Java too.
+
+#### How and Why LLM Helped
+ChatGPT provided guidance in multiple areas:
+1. CI/CD Troubleshooting:
+   - Explained reasons behind errors such as “Cannot connect to Docker daemon”, “curl not found”, and “image does not exist locally”.
+   - Suggested proper configuration for the docker:dind service, correct DOCKER_HOST setup, and use of the needs keyword between stages.
+   - Helped ensure that docker build, smoketest, and trivy scan stages worked sequentially.
+   
+2. Concept Clarification:
+   - Explained how GitLab handles artifacts, image caching, and Docker networking between jobs.
+   - Helped me understand why Trivy could not access local images and why pushing to Harbor was needed.
+
+3. Documentation Support:
+   - Assisted in structuring the Report.md file in the required format and summarizing encountered issues clearly.
+   - Helped create this llm.txt report following the university’s guidelines.
+
+#### Mistakes Made by LLM
+- Initially suggested Trivy commands that caused a "sh not found" error because the Trivy image doesn’t have a shell.
+- At one point, it proposed adding unnecessary environment variables (DOCKER_TLS_CERTDIR) which caused temporary build failures.
+- It also gave slightly outdated syntax for certain GitLab configuration fields (like rules: and quoting issues), which required manual corrections.
+
+#### What the LLM Could Not Provide
+- It could not see or access my GitLab environment or actual build logs in real time.
+- It could not verify if Harbor authentication worked correctly — I had to debug that manually.
+- It did not always know which images or dependencies were preinstalled in the course’s GitLab runners, so some commands failed and had to be corrected through trial and error.
