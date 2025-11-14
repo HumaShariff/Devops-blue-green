@@ -15,16 +15,20 @@ build:
   image: docker:latest
   services:
     - docker:dind  # Correct list formatting
+  rules:
+    - if: $CI_COMMIT_TAG == "deploy"
+      when: always
+    - when: never
   script:
     - echo "$HARBOR_PASSWORD" | docker login harbor.treok.eu -u "$HARBOR_USERNAME" --password-stdin
-    - docker build -t harbor.treok.eu/devops_compcs140/compse140-test-service1:latest ./service1
-    - docker build -t harbor.treok.eu/devops_compcs140/compse140-test-storage:latest ./storage
-    - docker push harbor.treok.eu/devops_compcs140/compse140-test-service1:latest
-    - docker push harbor.treok.eu/devops_compcs140/compse140-test-storage:latest
+    - docker build -t harbor.treok.eu/devops_compcs140/compse140-test-service1:$CI_COMMIT_TAG ./service1
+    - docker build -t harbor.treok.eu/devops_compcs140/compse140-test-storage:$CI_COMMIT_TAG ./storage
+    - docker push harbor.treok.eu/devops_compcs140/compse140-test-service1:$CI_COMMIT_TAG
+    - docker push harbor.treok.eu/devops_compcs140/compse140-test-storage:$CI_COMMIT_TAG
   after_script:
     - echo "Cleaning up locally created Docker images..."
-    - SERVICE1_IMAGE="harbor.treok.eu/devops_compcs140/compse140-test-service1:latest"
-    - STORAGE_IMAGE="harbor.treok.eu/devops_compcs140/compse140-test-storage:latest"
+    - SERVICE1_IMAGE="harbor.treok.eu/devops_compcs140/compse140-test-service1:$CI_COMMIT_TAG"
+    - STORAGE_IMAGE="harbor.treok.eu/devops_compcs140/compse140-test-storage:$CI_COMMIT_TAG"
     # Force-remove the specific images built
     - docker rmi -f $SERVICE1_IMAGE $STORAGE_IMAGE || true
     # Remove dangling images and unused layers for a thorough cleanup
@@ -35,19 +39,24 @@ deploy:
   stage: deploy
   image: alpine:latest
   needs: ["build"]
+  rules:
+    - if: $CI_COMMIT_TAG == "deploy"
+      when: always
+    - when: never
   before_script:
     # Use bash in before_script if you use it in script
     - apk add --no-cache openssh-client bash
-    - echo "$SSH_PRIVATE_KEY" | base64 -d > /home/ubuntu/.ssh/id_rsa
-    - chmod 600 /home/ubuntu/.ssh/id_rsa
+    - mkdir -p ~/.ssh
+    - echo "$SSH_PRIVATE_KEY" | base64 -d > ~/.ssh/id_rsa
+    - chmod 600 ~/.ssh/id_rsa
   script:
     # Copy application files
-    - scp -i /home/ubuntu/.ssh/id_rsa -r ./service1 ubuntu@195.148.23.137:/home/ubuntu/nsv323/service1
-    - scp -i /home/ubuntu/.ssh/id_rsa -r ./storage ubuntu@195.148.23.137:/home/ubuntu/nsv323/storage
-    - scp -i /home/ubuntu/.ssh/id_rsa docker-compose.yaml ubuntu@195.148.23.137:/home/ubuntu/nsv323/docker-compose.yaml
+    - scp -i ~/.ssh/id_rsa -r ./service1 ubuntu@195.148.23.137:/home/ubuntu/nsv323/service1
+    - scp -i ~/.ssh/id_rsa -r ./storage ubuntu@195.148.23.137:/home/ubuntu/nsv323/storage
+    - scp -i ~/.ssh/id_rsa docker-compose.yaml ubuntu@195.148.23.137:/home/ubuntu/nsv323/docker-compose.yaml
 
     # SSH and deploy
-    - ssh -i /home/ubuntu/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu@195.148.23.137 'bash -s' << 'EOF'
+    - ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu@195.148.23.137 'bash -s' << 'EOF'
       set -e
       
       if ! command -v docker &> /dev/null; then
@@ -77,15 +86,20 @@ clean:
   stage: clean
   image: alpine:latest
   # This job does not need build artifacts
+  rules:
+    - if: $CI_COMMIT_TAG == "clean"
+      when: always
+    - when: never
   needs: [] 
   before_script:
     # Same setup as deploy for SSH access
     - apk add --no-cache openssh-client bash
-    - echo "$SSH_PRIVATE_KEY" | base64 -d > /home/ubuntu/.ssh/id_rsa
-    - chmod 600 /home/ubuntu/.ssh/id_rsa
+    - mkdir -p ~/.ssh
+    - echo "$SSH_PRIVATE_KEY" | base64 -d > ~/.ssh/id_rsa
+    - chmod 600 ~/.ssh/id_rsa
   script:
     # SSH and clean up
-    - ssh -i /home/ubuntu/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu@195.148.23.137 'bash -s' << 'EOF'
+    - ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu@195.148.23.137 'bash -s' << 'EOF'
       set -e
       cd /home/ubuntu/nsv323
       sudo docker compose down -v
