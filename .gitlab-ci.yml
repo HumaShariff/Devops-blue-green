@@ -32,44 +32,45 @@ deploy:
   #     when: always
   #   - when: never
   before_script:
-    # Decode SSH key stored as GitLab variable
+    - apk add --no-cache openssh-client
     - echo "$SSH_PRIVATE_KEY" | base64 -d > ~/.ssh/id_rsa
     - chmod 600 ~/.ssh/id_rsa
   script:
     # Copy application files to VM using scp
-    - scp -i ~/.ssh/id_rsa -r ./service1 ubuntu@195.148.23.137$:/home/ubuntu/nsv323/service1
-    - scp -i ~/.ssh/id_rsa -r ./storage ubuntu@$195.148.23.137:/home/ubuntu/nsv323/storage
-    - scp -i ~/.ssh/id_rsa docker-compose.yaml ubuntu@$195.148.23.137:/home/ubuntu/nsv323/docker-compose.yaml
+    - scp -i ~/.ssh/id_rsa -r ./service1 ubuntu@195.148.23.137:/home/ubuntu/nsv323/service1
+    - scp -i ~/.ssh/id_rsa -r ./storage ubuntu@195.148.23.137:/home/ubuntu/nsv323/storage
+    - scp -i ~/.ssh/id_rsa docker-compose.yaml ubuntu@195.148.23.137:/home/ubuntu/nsv323/docker-compose.yaml
 
-    # SSH into VM and deploy
-    - ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu@195.148.23.137: "
-        set -e
+    # # SSH into VM and deploy
+    # - ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu@195.148.23.137 '
+    #     set -e
 
-        # Install Docker if missing
-        if ! command -v docker &> /dev/null; then
-          curl -fsSL https://get.docker.com -o get-docker.sh
-          sh get-docker.sh
-        fi
+    #     # Install Docker if missing
+    #     if ! command -v docker &> /dev/null; then
+    #       curl -fsSL https://get.docker.com -o get-docker.sh
+    #       sh get-docker.sh
+    #     fi
 
-        # Install Docker Compose if missing
-        if ! command -v docker-compose &> /dev/null; then
-          DOCKER_COMPOSE_VERSION=2.27.0
-          sudo mkdir -p /usr/local/lib/docker/cli-plugins
-          sudo curl -SL https://github.com/docker/compose/releases/download/\$DOCKER_COMPOSE_VERSION/docker-compose-\$(uname -s)-\$(uname -m) -o /usr/local/lib/docker/cli-plugins/docker-compose
-          sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
-        fi
+    #     # Install Docker Compose if missing
+    #     if ! command -v docker compose &> /dev/null; then
+    #       DOCKER_COMPOSE_VERSION=2.27.0
+    #       sudo mkdir -p /usr/local/lib/docker/cli-plugins
+    #       sudo curl -SL https://github.com/docker/compose/releases/download/$DOCKER_COMPOSE_VERSION/docker-compose-$(uname -s)-$(uname -m) -o /usr/local/lib/docker/cli-plugins/docker-compose
+    #       sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+    #     fi
 
-        # Login to Harbor
-        echo \"$HARBOR_PASSWORD\" | docker login harbor.treok.eu -u \"$HARBOR_USERNAME\" --password-stdin
+    #     # Login to Harbor
+    #     echo "$HARBOR_PASSWORD" | docker login harbor.treok.eu -u "$HARBOR_USERNAME" --password-stdin
 
-        # Go to app folder
-        cd /home/ubuntu/nsv323
+    #     # Go to app folder
+    #     cd /home/ubuntu/nsv323
 
-        sudo docker pull harbor.treok.eu/devops_compcs140/compse140-test-service1:latest
-        sudo docker pull harbor.treok.eu/devops_compcs140/compse140-test-storage:latest
+    #     # Pull latest images from Harbor
+    #     sudo docker pull harbor.treok.eu/devops_compcs140/compse140-test-service1:latest
+    #     sudo docker pull harbor.treok.eu/devops_compcs140/compse140-test-storage:latest
 
-        # Pull latest images from Harbor
-        sudo docker compose pull
+    #     # Pull latest images from Harbor
+    #     sudo docker compose pull
 
-        # Start services
-        sudo docker compose up -d "
+    #     # Start services
+    #     sudo docker compose up -d '
