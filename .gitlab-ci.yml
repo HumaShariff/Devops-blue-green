@@ -51,9 +51,9 @@ deploy:
     - chmod 600 ~/.ssh/id_rsa
   script:
     # Copy application files
-    - scp -i ~/.ssh/id_rsa -r ./service1 ubuntu@195.148.23.137:/home/ubuntu/nsv323/service1
-    - scp -i ~/.ssh/id_rsa -r ./storage ubuntu@195.148.23.137:/home/ubuntu/nsv323/storage
-    - scp -i ~/.ssh/id_rsa docker-compose.yaml ubuntu@195.148.23.137:/home/ubuntu/nsv323/docker-compose.yaml
+    - scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no -r ./service1 ubuntu@195.148.23.137:/home/ubuntu/nsv323/service1
+    - scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no -r ./storage ubuntu@195.148.23.137:/home/ubuntu/nsv323/storage
+    - scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no docker-compose.yaml ubuntu@195.148.23.137:/home/ubuntu/nsv323/docker-compose.yaml
 
     # SSH and deploy
     - ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu@195.148.23.137 'bash -s' << 'EOF'
