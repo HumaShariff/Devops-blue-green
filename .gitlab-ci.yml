@@ -3,8 +3,6 @@ stages:
  
 build:
   stage: build
-  only:
-    - tags
   rules:
     - if: '$CI_COMMIT_TAG == "deploy"'
       when: always
