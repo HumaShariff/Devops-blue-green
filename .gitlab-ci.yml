@@ -21,6 +21,15 @@ build:
     - docker build -t harbor.treok.eu/devops_compcs140/compse140-test-storage:latest ./storage
     - docker push harbor.treok.eu/devops_compcs140/compse140-test-service1:latest
     - docker push harbor.treok.eu/devops_compcs140/compse140-test-storage:latest
+  after_script:
+    - echo "Cleaning up locally created Docker images..."
+    - SERVICE1_IMAGE="harbor.treok.eu/devops_compcs140/compse140-test-service1:latest"
+    - STORAGE_IMAGE="harbor.treok.eu/devops_compcs140/compse140-test-storage:latest"
+    # Force-remove the specific images built
+    - docker rmi -f $SERVICE1_IMAGE $STORAGE_IMAGE || true
+    # Remove dangling images and unused layers for a thorough cleanup
+    - docker system prune -f
+    - echo "Cleanup complete."
 
 deploy:
   stage: deploy
