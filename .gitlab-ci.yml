@@ -1,6 +1,7 @@
 stages:
   - build
   - deploy
+  - clean
 
 variables:
   # This section uses key-value mapping, not a list.
