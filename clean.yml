@@ -1,0 +1,15 @@
+---
+- name: Clean docker environment
+  hosts: target
+  become: true
+  tasks:
+
+    - name: Stop containers
+      command: docker compose -f /home/ubuntu/nsv323/docker-compose.yaml down -v
+      ignore_errors: yes
+
+    - name: Remove deployment directory
+      file:
+        path: /home/ubuntu/nsv323
+        state: absent
+

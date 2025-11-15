@@ -4,19 +4,22 @@ stages:
   - clean
 
 variables:
-  # This section uses key-value mapping, not a list.
   DOCKER_HOST: "tcp://docker:2375"
   DOCKER_TLS_CERTDIR: ""
   DOCKER_DRIVER: overlay2
   DOCKER_CERT_PATH: ""
+  TARGET_IP: 195.148.23.137
+  TARGET_USER: ubuntu
+  SSH_PRIVATE_KEY_B64: $SSH_PRIVATE_KEY   # your private key in base64
 
+# ------------------- BUILD -------------------
 build:
   stage: build
   image: docker:latest
   services:
-    - docker:dind  # Correct list formatting
+    - docker:dind
   rules:
-    - if: $CI_COMMIT_TAG == "deploy"
+    - if: '$CI_COMMIT_TAG == "deploy"'
       when: always
     - when: never
   script:
@@ -27,81 +30,46 @@ build:
     - docker push harbor.treok.eu/devops_compcs140/compse140-test-storage:$CI_COMMIT_TAG
   after_script:
     - echo "Cleaning up locally created Docker images..."
-    - SERVICE1_IMAGE="harbor.treok.eu/devops_compcs140/compse140-test-service1:$CI_COMMIT_TAG"
-    - STORAGE_IMAGE="harbor.treok.eu/devops_compcs140/compse140-test-storage:$CI_COMMIT_TAG"
-    # Force-remove the specific images built
-    - docker rmi -f $SERVICE1_IMAGE $STORAGE_IMAGE || true
-    # Remove dangling images and unused layers for a thorough cleanup
+    - docker rmi -f harbor.treok.eu/devops_compcs140/compse140-test-service1:$CI_COMMIT_TAG harbor.treok.eu/devops_compcs140/compse140-test-storage:$CI_COMMIT_TAG || true
     - docker system prune -f
-    - echo "Cleanup complete."
 
+# ------------------- DEPLOY -------------------
 deploy:
   stage: deploy
   image: alpine:latest
   needs: ["build"]
   rules:
-    - if: $CI_COMMIT_TAG == "deploy"
+    - if: '$CI_COMMIT_TAG == "deploy"'
       when: always
     - when: never
   before_script:
-    # Use bash in before_script if you use it in script
-    - apk add --no-cache openssh-client bash
-    - mkdir -p ~/.ssh
-    - echo "$SSH_PRIVATE_KEY" | base64 -d > ~/.ssh/id_rsa
-    - chmod 600 ~/.ssh/id_rsa
-    - ssh-keyscan 195.148.23.137 >> ~/.ssh/known_hosts
+    - apk add --no-cache openssh-client python3 py3-pip rsync ansible bash curl
+    - mkdir -p /root/.ssh
+    - printf "%s" "$SSH_PRIVATE_KEY_B64" | base64 -d > /root/.ssh/key.pem
+    - chmod 600 /root/.ssh/key.pem
+    - echo -e "Host *\n\tStrictHostKeyChecking no\n" > /root/.ssh/config
   script:
-    # Copy application files
-    - scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no -r ./service1 ubuntu@195.148.23.137:/home/ubuntu/nsv323/service1
-    - scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no -r ./storage ubuntu@195.148.23.137:/home/ubuntu/nsv323/storage
-    - scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no docker-compose.yaml ubuntu@195.148.23.137:/home/ubuntu/nsv323/docker-compose.yaml
+    # Create inventory for Ansible
+    - echo "[target]" > inventory.ini
+    - echo "$TARGET_IP ansible_user=$TARGET_USER ansible_ssh_private_key_file=/root/.ssh/key.pem" >> inventory.ini
+    # Run Ansible playbook
+    - ansible-playbook -i inventory.ini deploy.yml
 
-    # SSH and deploy
-    - ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu@195.148.23.137 'bash -s' << 'EOF'
-      set -e
-      
-      if ! command -v docker &> /dev/null; then
-        curl -fsSL https://get.docker.com -o get-docker.sh
-        sh get-docker.sh
-        sudo usermod -aG docker ubuntu
-      fi
-      
-      if ! command -v docker compose &> /dev/null; then
-        DOCKER_COMPOSE_VERSION=2.27.0
-        sudo mkdir -p /usr/local/lib/docker/cli-plugins
-        sudo curl -SL https://github.com/docker/compose/releases/download/$DOCKER_COMPOSE_VERSION/docker-compose-$(uname -s)-$(uname -m) -o /usr/local/lib/docker/cli-plugins/docker-compose
-        sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
-      fi
-      
-      echo "$HARBOR_PASSWORD" | docker login harbor.treok.eu -u "$HARBOR_USERNAME" --password-stdin
-      
-      cd /home/ubuntu/nsv323
-      
-      sudo docker pull harbor.treok.eu/devops_compcs140/compse140-test-service1:latest
-      sudo docker pull harbor.treok.eu/devops_compcs140/compse140-test-storage:latest
-      
-      sudo docker compose up -d --remove-orphans
-      EOF
-
+# ------------------- CLEAN -------------------
 clean:
   stage: clean
   image: alpine:latest
-  # This job does not need build artifacts
   rules:
-    - if: $CI_COMMIT_TAG == "clean"
+    - if: '$CI_COMMIT_TAG == "clean"'
       when: always
     - when: never
-  needs: [] 
   before_script:
-    # Same setup as deploy for SSH access
-    - apk add --no-cache openssh-client bash
-    - mkdir -p ~/.ssh
-    - printf "%s" "$SSH_PRIVATE_KEY" | base64 -d > ~/.ssh/id_rsa 
-    - chmod 600 ~/.ssh/id_rsa
+    - apk add --no-cache openssh-client python3 py3-pip ansible bash
+    - mkdir -p /root/.ssh
+    - printf "%s" "$SSH_PRIVATE_KEY_B64" | base64 -d > /root/.ssh/key.pem
+    - chmod 600 /root/.ssh/key.pem
+    - echo -e "Host *\n\tStrictHostKeyChecking no\n" > /root/.ssh/config
   script:
-    # SSH and clean up
-    - ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu@195.148.23.137 'bash -s' << 'EOF'
-      set -e
-      cd /home/ubuntu/nsv323
-      sudo docker compose down -v
-      EOF
+    - echo "[target]" > inventory.ini
+    - echo "$TARGET_IP ansible_user=$TARGET_USER ansible_ssh_private_key_file=/root/.ssh/key.pem" >> inventory.ini
+    - ansible-playbook -i inventory.ini clean.yml

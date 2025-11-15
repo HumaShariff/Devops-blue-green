@@ -1,0 +1,53 @@
+---
+- name: Deploy application
+  hosts: target
+  become: true
+  tasks:
+
+    - name: Ensure deployment directory exists
+      file:
+        path: /home/ubuntu/nsv323
+        state: directory
+        owner: ubuntu
+        group: ubuntu
+        mode: '0755'
+
+    - name: Copy docker-compose.yaml
+      copy:
+        src: docker-compose.yaml
+        dest: /home/ubuntu/nsv323/docker-compose.yaml
+        owner: ubuntu
+        group: ubuntu
+        mode: '0644'
+
+    - name: Copy service1 files
+      copy:
+        src: service1/
+        dest: /home/ubuntu/nsv323/service1/
+        owner: ubuntu
+        group: ubuntu
+        mode: '0755'
+
+    - name: Copy storage files
+      copy:
+        src: storage/
+        dest: /home/ubuntu/nsv323/storage/
+        owner: ubuntu
+        group: ubuntu
+        mode: '0755'
+
+    - name: Log in to Harbor registry
+      command: >
+        docker login harbor.treok.eu
+        -u {{ lookup('env','HARBOR_USERNAME') }}
+        -p {{ lookup('env','HARBOR_PASSWORD') }}
+
+    - name: Pull latest images
+      command: docker pull harbor.treok.eu/devops_compcs140/compse140-test-service1:latest
+
+    - name: Pull latest storage image
+      command: docker pull harbor.treok.eu/devops_compcs140/compse140-test-storage:latest
+
+    - name: Start docker compose
+      command: docker compose -f /home/ubuntu/nsv323/docker-compose.yaml up -d --remove-orphans
+
