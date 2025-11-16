@@ -23,6 +23,8 @@ variables:
 
 # ------------------- BUILD -------------------
 build:
+  tags:
+    - csc
   stage: build
   image: docker:latest
   services:
@@ -44,6 +46,8 @@ build:
 
 # ------------------- DEPLOY -------------------
 deploy:
+  tags:
+    - csc
   stage: deploy
   image: alpine:latest
   needs: ["build"]
@@ -68,6 +72,8 @@ deploy:
 
 # ------------------- CLEAN -------------------
 clean:
+  tags:
+    - csc
   stage: clean
   image: alpine:latest
   rules:
