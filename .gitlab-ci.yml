@@ -55,7 +55,9 @@ clean:
   tags:
     - csc
   image: alpine:latest
-  needs: ["deploy"]
+  needs:
+    - job: deploy
+      optional: true
   rules:
     - if: '$CI_COMMIT_TAG == "clean"'
       when: always
