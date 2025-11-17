@@ -4,80 +4,56 @@ stages:
   - clean
 
 variables:
-  DOCKER_HOST: "tcp://docker:2375"
-  DOCKER_TLS_CERTDIR: ""
-  DOCKER_DRIVER: overlay2
-  DOCKER_CERT_PATH: ""
-  TARGET_IP: 195.148.23.137
-  TARGET_USER: ubuntu
-  SSH_PRIVATE_KEY_B64: $SSH_PRIVATE_KEY   # your private key in base64
+  TARGET_IP: "195.148.23.137"
+  TARGET_USER: "ubuntu"
+  SSH_PRIVATE_KEY_B64: "$SSH_PRIVATE_KEY"
 
+# ------------------- BUILD (optional) -------------------
 build:
   stage: build
+  tags:
+    - csc
   image: docker:latest
   services:
-    - docker:dind  # Correct list formatting
+    - docker:dind
   rules:
-    - if: $CI_COMMIT_TAG == "deploy"
-      when: always
-    - when: never
+    - if: '$CI_COMMIT_TAG == "deploy"'
+      when: never        # CSC runners cannot run DIND, so disable
   script:
-    - echo "$HARBOR_PASSWORD" | docker login harbor.treok.eu -u "$HARBOR_USERNAME" --password-stdin
-    - docker build -t harbor.treok.eu/devops_compcs140/compse140-test-service1:$CI_COMMIT_TAG ./service1
-    - docker build -t harbor.treok.eu/devops_compcs140/compse140-test-storage:$CI_COMMIT_TAG ./storage
-    - docker push harbor.treok.eu/devops_compcs140/compse140-test-service1:$CI_COMMIT_TAG
-    - docker push harbor.treok.eu/devops_compcs140/compse140-test-storage:$CI_COMMIT_TAG
-  after_script:
-    - echo "Cleaning up locally created Docker images..."
-    - SERVICE1_IMAGE="harbor.treok.eu/devops_compcs140/compse140-test-service1:$CI_COMMIT_TAG"
-    - STORAGE_IMAGE="harbor.treok.eu/devops_compcs140/compse140-test-storage:$CI_COMMIT_TAG"
-    # Force-remove the specific images built
-    - docker rmi -f $SERVICE1_IMAGE $STORAGE_IMAGE || true
-    # Remove dangling images and unused layers for a thorough cleanup
-    - docker system prune -f
-    - echo "Cleanup complete."
-
+    - echo "Skipping build (DIND unsupported on CSC runners)"
 
 # ------------------- DEPLOY -------------------
 deploy:
+  stage: deploy
   tags:
     - csc
-  stage: deploy
   image: alpine:latest
-  needs: ["build"]
+  needs: []
   rules:
     - if: '$CI_COMMIT_TAG == "deploy"'
-      when: always
-    - when: never
   before_script:
     - apk add --no-cache openssh-client python3 py3-pip rsync ansible bash curl
     - mkdir -p /root/.ssh
-    - printf "%s" "$SSH_PRIVATE_KEY" | base64 -d > /root/.ssh/key.pem
+    - printf '%s' "$SSH_PRIVATE_KEY_B64" | base64 -d > /root/.ssh/key.pem
     - chmod 600 /root/.ssh/key.pem
     - echo -e "Host *\n\tStrictHostKeyChecking no\n" > /root/.ssh/config
   script:
-    # Create inventory for Ansible
     - echo "[target]" > inventory.ini
     - echo "$TARGET_IP ansible_user=$TARGET_USER ansible_ssh_private_key_file=/root/.ssh/key.pem" >> inventory.ini
-    # Run Ansible playbook
     - ansible-playbook -i inventory.ini deploy.yml
-  after_script:
-    - echo "Cleaning up..."
 
 # ------------------- CLEAN -------------------
 clean:
+  stage: clean
   tags:
     - csc
-  stage: clean
   image: alpine:latest
   rules:
     - if: '$CI_COMMIT_TAG == "clean"'
-      when: always
-    - when: never
   before_script:
-    - apk add --no-cache openssh-client python3 py3-pip ansible bash
+    - apk add --no-cache openssh-client python3 py3-pip rsync ansible bash curl
     - mkdir -p /root/.ssh
-    - printf "%s" "$SSH_PRIVATE_KEY" | base64 -d > /root/.ssh/key.pem
+    - printf '%s' "$SSH_PRIVATE_KEY_B64" | base64 -d > /root/.ssh/key.pem
     - chmod 600 /root/.ssh/key.pem
     - echo -e "Host *\n\tStrictHostKeyChecking no\n" > /root/.ssh/config
   script:

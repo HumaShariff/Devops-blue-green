@@ -1,53 +1,59 @@
 ---
-- name: Deploy application
-  hosts: target
-  become: true
+- name: Deploy the application to remote host
+  hosts: all
+  become: yes
+
+  vars:
+    app_dir: "/home/{{ ansible_user }}/myapp"
+    compose_file: "docker-compose.yml"
+
   tasks:
 
-    - name: Ensure deployment directory exists
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+
+    - name: Install Docker using official Docker repo
+      shell: |
+        set -e
+        apt-get update
+        apt-get install -y ca-certificates curl gnupg
+
+        install -m 0755 -d /etc/apt/keyrings
+        curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+        chmod a+r /etc/apt/keyrings/docker.asc
+
+        echo \
+          "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
+          $(. /etc/os-release && echo "$VERSION_CODENAME") stable" \
+          > /etc/apt/sources.list.d/docker.list
+
+        apt-get update
+        apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+      args:
+        executable: /bin/bash
+
+    - name: Ensure app directory exists
       file:
-        path: /home/ubuntu/nsv323
+        path: "{{ app_dir }}"
         state: directory
-        owner: ubuntu
-        group: ubuntu
         mode: '0755'
 
-    - name: Copy docker-compose.yaml
-      copy:
-        src: docker-compose.yaml
-        dest: /home/ubuntu/nsv323/docker-compose.yaml
-        owner: ubuntu
-        group: ubuntu
-        mode: '0644'
+    - name: Copy application files
+      synchronize:
+        src: "./"
+        dest: "{{ app_dir }}"
+        delete: no
+        rsync_opts:
+          - "--exclude=.git"
+          - "--exclude=.gitlab-ci.yml"
+          - "--exclude=id_rsa"
+          - "--exclude=__pycache__"
+          - "--exclude=*.pyc"
 
-    - name: Copy service1 files
-      copy:
-        src: service1/
-        dest: /home/ubuntu/nsv323/service1/
-        owner: ubuntu
-        group: ubuntu
-        mode: '0755'
+    - name: Start application with Docker Compose
+      command: docker compose -f {{ app_dir }}/{{ compose_file }} up -d --build
+      args:
+        chdir: "{{ app_dir }}"
 
-    - name: Copy storage files
-      copy:
-        src: storage/
-        dest: /home/ubuntu/nsv323/storage/
-        owner: ubuntu
-        group: ubuntu
-        mode: '0755'
-
-    - name: Log in to Harbor registry
-      command: >
-        docker login harbor.treok.eu
-        -u {{ lookup('env','HARBOR_USERNAME') }}
-        -p {{ lookup('env','HARBOR_PASSWORD') }}
-
-    - name: Pull latest images
-      command: docker pull harbor.treok.eu/devops_compcs140/compse140-test-service1:latest
-
-    - name: Pull latest storage image
-      command: docker pull harbor.treok.eu/devops_compcs140/compse140-test-storage:latest
-
-    - name: Start docker compose
-      command: docker compose -f /home/ubuntu/nsv323/docker-compose.yaml up -d --remove-orphans
 

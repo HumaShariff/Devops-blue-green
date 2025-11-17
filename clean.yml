@@ -1,15 +1,23 @@
 ---
-- name: Clean docker environment
-  hosts: target
-  become: true
+- name: Clean persistent storage
+  hosts: all
+  become: yes
+
+  vars:
+    app_dir: "/home/{{ ansible_user }}/myapp"
+    storage_file: "/data/storage.txt"
+    project_name: "exercise3"
+
   tasks:
+    - name: Ensure Python is available
+      raw: test -e /usr/bin/python3 || (apt-get update && apt-get install -y python3)
+      changed_when: false
 
-    - name: Stop containers
-      command: docker compose -f /home/ubuntu/nsv323/docker-compose.yaml down -v
-      ignore_errors: yes
+    - name: Get the running container ID for the project
+      command: docker ps --filter "label=com.docker.compose.project={{ project_name }}" --format "{{ '{{.ID}}' }}"
+      register: container_id
+      changed_when: false
 
-    - name: Remove deployment directory
-      file:
-        path: /home/ubuntu/nsv323
-        state: absent
-
+    - name: Clear storage file inside container
+      command: docker exec {{ container_id.stdout }} sh -c "truncate -s 0 {{ storage_file }}"
+      when: container_id.stdout != ""
