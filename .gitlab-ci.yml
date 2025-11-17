@@ -4,7 +4,7 @@ stages:
   - clean
 
 variables:
-  TARGET_IP: "195.148.23.137"
+  TARGET_IP: "195.148.21.57"
   TARGET_USER: "ubuntu"
   SSH_PRIVATE_KEY_B64: "$SSH_PRIVATE_KEY"
 
