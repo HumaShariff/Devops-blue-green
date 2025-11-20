@@ -4,20 +4,34 @@
   become: yes
 
   vars:
-    app_dir: "/home/{{ ansible_user }}/myapp"
-    storage_file: "/data/storage.txt"
-    project_name: "exercise3"
+    volume_path: "/var/lib/docker/volumes/myapp_storage_data/_data"
+    storage_file: "/var/lib/docker/volumes/myapp_storage_data/_data/storage.txt"
 
   tasks:
-    - name: Ensure Python is available
-      raw: test -e /usr/bin/python3 || (apt-get update && apt-get install -y python3)
-      changed_when: false
+    - name: Stop app containers
+      command: docker compose -f /home/{{ ansible_user }}/myapp/docker-compose.yml down
 
-    - name: Get the running container ID for the project
-      command: docker ps --filter "label=com.docker.compose.project={{ project_name }}" --format "{{ '{{.ID}}' }}"
-      register: container_id
-      changed_when: false
+    - name: Ensure volume directory exists
+      file:
+        path: "{{ volume_path }}"
+        state: directory
 
-    - name: Clear storage file inside container
-      command: docker exec {{ container_id.stdout }} sh -c "truncate -s 0 {{ storage_file }}"
-      when: container_id.stdout != ""
+    - name: Remove all files inside the volume
+      file:
+        path: "{{ volume_path }}"
+        state: absent
+
+    - name: Recreate volume directory
+      file:
+        path: "{{ volume_path }}"
+        state: directory
+        mode: '0755'
+
+    - name: Create empty storage.txt
+      file:
+        path: "{{ storage_file }}"
+        state: touch
+        mode: '0644'
+
+    - name: Restart app
+      command: docker compose -f /home/{{ ansible_user }}/myapp/docker-compose.yml up -d

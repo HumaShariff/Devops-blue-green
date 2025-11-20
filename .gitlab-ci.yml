@@ -6,68 +6,64 @@ stages:
 variables:
   TARGET_IP: "195.148.21.57"
   TARGET_USER: "ubuntu"
-  SSH_PRIVATE_KEY_B64: "$SSH_PRIVATE_KEY"
+  SSH_PRIVATE_KEY_B64: "$SSH_PRIVATE_KEY"  
+
+# ------------------- SSH SETUP -------------------
+.before_ssh: &before_ssh |
+  mkdir -p /root/.ssh
+  printf "%s" "$SSH_PRIVATE_KEY_B64" | base64 -d > /root/.ssh/key.pem
+  chmod 600 /root/.ssh/key.pem
+  echo -e "Host *\n\tStrictHostKeyChecking no\n" > /root/.ssh/config
 
 # ------------------- BUILD -------------------
 build:
   stage: build
+  image: alpine:latest
   tags:
     - csc
-  image: alpine:latest   # lightweight image for local build/test
   rules:
     - if: '$CI_COMMIT_TAG == "deploy"'
-      when: always
   script:
-    # Check that service directories exist
     - echo "Checking service directories..."
     - test -d ./service1 || (echo "service1 missing!" && exit 1)
+    - test -d ./service2 || (echo "service2 missing!" && exit 1)
     - test -d ./storage || (echo "storage missing!" && exit 1)
-    # Optional: build Dockerfiles locally for syntax check (without DIND)
-    - echo "Checking Dockerfiles syntax..."
-    - if [ -f ./service1/Dockerfile ]; then echo "service1 Dockerfile found"; fi
-    - if [ -f ./storage/Dockerfile ]; then echo "storage Dockerfile found"; fi
     - echo "Build checks complete"
 
 # ------------------- DEPLOY -------------------
 deploy:
   stage: deploy
+  image: alpine:latest
   tags:
     - csc
-  image: alpine:latest
-  needs: ["build"]
+  needs: []
   rules:
     - if: '$CI_COMMIT_TAG == "deploy"'
-      when: always
   before_script:
     - apk add --no-cache openssh-client python3 py3-pip rsync ansible bash curl
-    - mkdir -p /root/.ssh
-    - printf '%s' "$SSH_PRIVATE_KEY" | base64 -d > /root/.ssh/key.pem
-    - chmod 600 /root/.ssh/key.pem
-    - echo -e "Host *\n\tStrictHostKeyChecking no\n" > /root/.ssh/config
+    - *before_ssh
   script:
     - echo "[target]" > inventory.ini
     - echo "$TARGET_IP ansible_user=$TARGET_USER ansible_ssh_private_key_file=/root/.ssh/key.pem" >> inventory.ini
     - ansible-playbook -i inventory.ini deploy.yml
+  after_script:
+    - echo "Deployment finished"
 
 # ------------------- CLEAN -------------------
 clean:
   stage: clean
+  image: alpine:latest
   tags:
     - csc
-  image: alpine:latest
-  needs:
-    - job: deploy
-      optional: true
+  needs: ["deploy"]
   rules:
     - if: '$CI_COMMIT_TAG == "clean"'
-      when: always
   before_script:
     - apk add --no-cache openssh-client python3 py3-pip rsync ansible bash curl
-    - mkdir -p /root/.ssh
-    - printf '%s' "$SSH_PRIVATE_KEY" | base64 -d > /root/.ssh/key.pem
-    - chmod 600 /root/.ssh/key.pem
-    - echo -e "Host *\n\tStrictHostKeyChecking no\n" > /root/.ssh/config
+    - *before_ssh
   script:
     - echo "[target]" > inventory.ini
     - echo "$TARGET_IP ansible_user=$TARGET_USER ansible_ssh_private_key_file=/root/.ssh/key.pem" >> inventory.ini
     - ansible-playbook -i inventory.ini clean.yml
+  after_script:
+    - echo "Cleanup finished"
