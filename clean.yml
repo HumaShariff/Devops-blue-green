@@ -4,12 +4,12 @@
   become: yes
 
   vars:
-    volume_path: "/var/lib/docker/volumes/myapp_storage_data/_data"
-    storage_file: "/var/lib/docker/volumes/myapp_storage_data/_data/storage.txt"
+    volume_path: "/var/lib/docker/volumes/data"
+    storage_file: "/var/lib/docker/volumes/data/log.txt"
 
   tasks:
     - name: Stop app containers
-      command: docker compose -f /home/{{ ansible_user }}/myapp/docker-compose.yml down
+      command: docker compose -f /home/{{ ansible_user }}/docker-compose.yml down
 
     - name: Ensure volume directory exists
       file:
@@ -34,4 +34,4 @@
         mode: '0644'
 
     - name: Restart app
-      command: docker compose -f /home/{{ ansible_user }}/myapp/docker-compose.yml up -d
+      command: docker compose -f /home/{{ ansible_user }}/docker-compose.yml up -d

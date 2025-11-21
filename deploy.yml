@@ -4,7 +4,7 @@
   become: yes
 
   vars:
-    app_dir: "/home/{{ ansible_user }}/myapp"
+    app_dir: "/home/{{ ansible_user }}"
     compose_file: "docker-compose.yml"
 
   tasks:
