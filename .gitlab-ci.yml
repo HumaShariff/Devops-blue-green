@@ -4,13 +4,14 @@ stages:
   - clean
 
 variables:
-  TARGET_IP: "195.148.21.57"
+  TARGET_IP: "86.50.22.0"
   TARGET_USER: "ubuntu"
   SSH_PRIVATE_KEY_B64: "$SSH_PRIVATE_KEY"  
 
 # ------------------- SSH SETUP -------------------
 .before_ssh: &before_ssh |
   mkdir -p /root/.ssh
+  chmod 700 /root/.ssh
   printf "%s" "$SSH_PRIVATE_KEY_B64" | base64 -d > /root/.ssh/key.pem
   chmod 600 /root/.ssh/key.pem
   echo -e "Host *\n\tStrictHostKeyChecking no\n" > /root/.ssh/config
