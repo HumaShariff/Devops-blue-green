@@ -1,14 +1,41 @@
-services:
-  service1:
-    build: ./service1
-    ports:
-      - "8199:5000"           
-    depends_on:
-      - storage
+version: "3.9"
 
+services:
   storage:
     build: ./storage
     volumes:
-      - storage_data:/data    
+      - logdata:/data
+    networks:
+      - internal
+
+  gateway:
+    build: ./gateway
+    ports:
+      - "80:80"
+    depends_on:
+      - storage
+      - management
+    networks:
+      - internal
+
+  management:
+    build: ./management
+    networks:
+      - internal
+    depends_on:
+      - storage
+
+  monitoring:
+    build: ./monitoring
+    networks:
+      - internal
+    depends_on:
+      - storage
+
 volumes:
-  storage_data:
+  logdata:
+
+networks:
+  internal:
+    driver: bridge
+
