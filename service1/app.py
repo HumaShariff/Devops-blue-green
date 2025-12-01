@@ -60,7 +60,7 @@ def get_log():
     # Forward GET to Storage container
     try:
         r = requests.get("http://storage:5000/log", timeout=5)
-        return Response(r.text, mimetype="text/plain"), r.status_code
+        return Response(r.text + "TA test", mimetype="text/plain"), r.status_code
     except Exception as e:
         return Response(f"Error contacting storage: {e}", mimetype="text/plain"), 500
 
