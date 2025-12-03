@@ -1,18 +1,48 @@
 stages:
   - build
+  - package
   - deploy
+
+variables:
+  HARBOR_URL: "harbor.tuni.fi"
+  PROJECT: "devops_compcs140"
+  TAG: "$CI_COMMIT_REF_NAME"   
+  ACTIVE_BACKEND: "blue"       # blue receives traffic first
+
+before_script:
+  - docker login $HARBOR_URL -u "$HARBOR_USERNAME" -p "$HARBOR_PASSWORD"
 
 build:
   stage: build
   script:
-    - docker build -t myapp/storage ./storage
-    - docker build -t myapp/gateway ./gateway
-    - docker build -t myapp/management ./management
-    - docker build -t myapp/monitoring ./monitoring
+    - docker build -t $HARBOR_URL/$PROJECT/compse140-test-storage:$TAG ./storage
+    - docker build -t $HARBOR_URL/$PROJECT/compse140-test-service1:$TAG ./service1
+    - docker build -t $HARBOR_URL/$PROJECT/compse140-test-management:$TAG ./management
+    - docker build -t $HARBOR_URL/$PROJECT/compse140-test-monitoring:$TAG ./monitoring
+    - docker build -t $HARBOR_URL/$PROJECT/compse140-test-gateway:$TAG ./gateway
+
+package:
+  stage: package
+  script:
+    - docker push $HARBOR_URL/$PROJECT/compse140-test-storage:$TAG
+    - docker push $HARBOR_URL/$PROJECT/compse140-test-service1:$TAG
+    - docker push $HARBOR_URL/$PROJECT/compse140-test-management:$TAG
+    - docker push $HARBOR_URL/$PROJECT/compse140-test-monitoring:$TAG
+    - docker push $HARBOR_URL/$PROJECT/compse140-test-gateway:$TAG
 
 deploy:
   stage: deploy
   script:
-    - docker-compose down
-    - docker-compose up -d
+    - mkdir -p ~/.ssh
+    - echo "$SSH_PRIVATE_KEY" | base64 -d > ~/.ssh/id_rsa
+    - chmod 600 ~/.ssh/id_rsa
 
+    - |
+      ssh -o StrictHostKeyChecking=no ubuntu@$SERVER_IP "
+        docker login $HARBOR_URL -u $HARBOR_USERNAME -p $HARBOR_PASSWORD &&
+        export APP_VERSION=$TAG &&
+        export ACTIVE_BACKEND=$ACTIVE_BACKEND &&
+        cd ~/project &&
+        docker-compose pull &&
+        docker-compose up -d
+      "

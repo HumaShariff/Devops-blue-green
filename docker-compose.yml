@@ -1,41 +1,40 @@
 version: "3.9"
 
 services:
+
   storage:
-    build: ./storage
-    volumes:
-      - logdata:/data
-    networks:
-      - internal
+    image: harbor.tuni.fi/devops_compcs140/compse140-test-storage:${APP_VERSION}
+    networks: [internal]
+
+  service1_blue:
+    image: harbor.tuni.fi/devops_compcs140/compse140-test-service1:project1.0
+    networks: [internal]
+    depends_on: [storage]
+
+  service1_green:
+    image: harbor.tuni.fi/devops_compcs140/compse140-test-service1:project1.1
+    networks: [internal]
+    depends_on: [storage]
 
   gateway:
     build: ./gateway
     ports:
       - "80:80"
+    networks: [internal]
     depends_on:
-      - storage
-      - management
-    networks:
-      - internal
+      - service1_blue
+      - service1_green
+    environment:
+      ACTIVE_BACKEND: ${ACTIVE_BACKEND}   # blue initially
 
   management:
-    build: ./management
-    networks:
-      - internal
-    depends_on:
-      - storage
+    image: harbor.tuni.fi/devops_compcs140/compse140-test-management:${APP_VERSION}
+    networks: [internal]
 
   monitoring:
-    build: ./monitoring
-    networks:
-      - internal
-    depends_on:
-      - storage
-
-volumes:
-  logdata:
+    image: harbor.tuni.fi/devops_compcs140/compse140-test-monitoring:${APP_VERSION}
+    networks: [internal]
 
 networks:
   internal:
     driver: bridge
-
