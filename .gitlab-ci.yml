@@ -8,12 +8,23 @@ variables:
   PROJECT: "devops_compcs140"
   TAG: "$CI_COMMIT_REF_NAME"   
   ACTIVE_BACKEND: "blue"       # blue receives traffic first
+  DOCKER_HOST: "tcp://docker:2375"
+  DOCKER_TLS_CERTDIR: ""
+  DOCKER_DRIVER: overlay2
+  DOCKER_CERT_PATH: ""
+
 
 before_script:
   - docker login $HARBOR_URL -u "$HARBOR_USERNAME" -p "$HARBOR_PASSWORD"
 
 build:
   stage: build
+  image: docker:26
+  services:
+    - docker:dind
+  variables:
+    DOCKER_HOST: "tcp://docker:2375"
+    DOCKER_TLS_CERTDIR: ""
   script:
     - docker build -t $HARBOR_URL/$PROJECT/compse140-test-storage:$TAG ./storage
     - docker build -t $HARBOR_URL/$PROJECT/compse140-test-service1:$TAG ./service1
