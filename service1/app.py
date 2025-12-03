@@ -67,11 +67,4 @@ def get_log():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
-def uptime_hours():
-    try:
-        with open('/proc/uptime', 'r') as f:
-            secs = float(f.readline().split()[0])
-            return secs / 3600.0   # hours
-    except Exception:
-        return 0.0
 
