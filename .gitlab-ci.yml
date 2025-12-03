@@ -19,8 +19,9 @@ before_script:
 
 build:
   stage: build
-  image: docker:24
-  entrypoint: ["/usr/bin/env", "bash", "-c"]
+  image:
+    name: docker:24
+    entrypoint: ["/usr/bin/env", "bash", "-c"]
   services:
     - docker:24-dind
   variables:
