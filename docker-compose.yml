@@ -1,28 +1,44 @@
-version: "3.9"
-
 services:
   storage:
-    image: harbor.tuni.fi/devops_compcs140/compse140-test-storage:${APP_VERSION}
-    networks: [internal]
+    image: harbor.treok.eu/devops_compcs140/compse140-test-storage:${APP_VERSION}
+    ports:
+      - "5100:5000"
     volumes:
       - storage_data:/app/logs
 
   service1_blue:
-    image: harbor.tuni.fi/devops_compcs140/compse140-test-service1:project1.0
-    networks: [internal]
-    depends_on: [storage]
+    image: harbor.treok.eu/devops_compcs140/compse140-test-service1:project1.0
+    depends_on:
+      - storage
+    ports:
+      - "5101:5000"
 
   service1_green:
-    image: harbor.tuni.fi/devops_compcs140/compse140-test-service1:project1.1
-    networks: [internal]
-    depends_on: [storage]
+    image: harbor.treok.eu/devops_compcs140/compse140-test-service1:project1.1
+    depends_on:
+      - storage
+    ports:
+      - "5102:5000"
+
+  management:
+    build: ./management
+    ports:
+      - "8198:8000"
+    depends_on:
+      - storage
+      - service1_blue
+      - service1_green
+    environment:
+      MGMT_USER: ${MGMT_USER}
+      SECRET_KEY: ${SECRET_KEY}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
 
   gateway:
     build: ./gateway
     ports:
       - "80:80"
       - "443:443"
-    networks: [internal]
     depends_on:
       - service1_blue
       - service1_green
@@ -31,17 +47,14 @@ services:
     volumes:
       - ./gateway/certs:/etc/letsencrypt
 
-  management:
-    image: harbor.tuni.fi/devops_compcs140/compse140-test-management:${APP_VERSION}
-    networks: [internal]
-
   monitoring:
-    image: harbor.tuni.fi/devops_compcs140/compse140-test-monitoring:${APP_VERSION}
-    networks: [internal]
-
-networks:
-  internal:
-    driver: bridge
+    build: ./monitoring
+    ports:
+      - "8200:8000"
+    depends_on:
+      - storage
+      - service1_blue
+      - service1_green
 
 volumes:
   storage_data:

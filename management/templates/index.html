@@ -3,6 +3,14 @@
 <body>
     <h1>Log Viewer</h1>
     <pre>{{ logs }}</pre>
+    <form action="/switch_version" method="post">
+        <button type="submit">SWITCH VERSION</button>
+    </form>
+    <form action="/discard_old" method="post">
+        <button type="submit">DISCARD OLD</button>
+    </form>
+    <form action="/reset_log" method="post">
+        <button type="submit">RESET LOG</button>
+    </form>
 </body>
 </html>
-
