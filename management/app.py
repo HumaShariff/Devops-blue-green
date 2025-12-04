@@ -51,22 +51,41 @@ def index():
 def switch_version():
     if not session.get("logged_in"):
         return redirect(url_for("login"))
+    
     # Read current active version
     try:
         with open(ACTIVE_VERSION_FILE, "r") as f:
             current = f.read().strip()
     except FileNotFoundError:
         current = "blue"
+    
     # Switch version
     new_version = "green" if current == "blue" else "blue"
     with open(ACTIVE_VERSION_FILE, "w") as f:
         f.write(new_version)
-    # Tell gateway
-    try:
-        requests.post(f"{GATEWAY_URL}/set_backend", json={"active": new_version})
-    except:
-        pass
+    
+    # Update nginx upstream inside gateway container
+    nginx_conf = f"""
+    upstream service1_backend {{
+        server devops-service1_{new_version}-1:5000;
+    }}
+
+    server {{
+        listen 80;
+        location / {{
+            proxy_pass http://service1_backend;
+        }}
+    }}
+    """
+    # Copy file inside gateway
+    tmp_conf = "/tmp/upstream.conf"
+    with open(tmp_conf, "w") as f:
+        f.write(nginx_conf)
+    os.system(f"docker cp {tmp_conf} devops-gateway-1:/etc/nginx/conf.d/upstream.conf")
+    os.system("docker exec devops-gateway-1 nginx -s reload")
+    
     return f"SWITCH VERSION triggered! Now active: {new_version}"
+
 
 @app.route("/discard_old", methods=["POST"])
 def discard_old():
