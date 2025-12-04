@@ -1,6 +1,8 @@
 services:
   storage:
-    image: harbor.treok.eu/devops_compcs140/compse140-test-storage:${APP_VERSION}
+    build: ./storage
+    #image: harbor.treok.eu/devops_compcs140/compse140-test-storage:${APP_VERSION}
+    # TODO below port info for local testing only - clean up later
     ports:
       - "5100:5000"
     volumes:

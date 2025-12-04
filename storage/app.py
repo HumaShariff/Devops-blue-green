@@ -1,24 +1,27 @@
 from flask import Flask, jsonify
-import os, glob
+import os
+import glob
 
 app = Flask(__name__)
 
 LOG_DIR = "/app/logs"
 
-@app.route("/log")
+@app.route("/log", methods=["GET"])
 def get_logs():
+    """Return the aggregated log content."""
     logs = ""
-    for f in glob.glob(f"{LOG_DIR}/*.log"):
-        with open(f, "r") as file:
-            logs += file.read() + "\n"
-    return logs
+    for log_file in glob.glob(f"{LOG_DIR}/*.log"):
+        with open(log_file, "r") as f:
+            logs += f.read() + "\n"
+    return logs, 200
 
 @app.route("/reset", methods=["POST"])
 def reset_logs():
-    for f in glob.glob(f"{LOG_DIR}/*.log"):
-        os.remove(f)
+    """Delete all log files."""
+    for log_file in glob.glob(f"{LOG_DIR}/*.log"):
+        os.remove(log_file)
     return jsonify({"status": "Logs cleared"}), 200
 
 if __name__ == "__main__":
-    os.makedirs(LOG_DIR, exist_ok=True)  # ensure logs folder exists
+    os.makedirs(LOG_DIR, exist_ok=True)
     app.run(host="0.0.0.0", port=5000)
