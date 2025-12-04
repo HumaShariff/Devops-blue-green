@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html>
+
 <body>
     <h1>Log Viewer</h1>
     <pre>{{ logs }}</pre>
@@ -12,5 +13,31 @@
     <form action="/reset_log" method="post">
         <button type="submit">RESET LOG</button>
     </form>
+    <h3>Container Monitoring</h3>
+    <table>
+        <tr>
+            <th>Container</th>
+            <th>Uptime</th>
+            <th>CPU %</th>
+            <th>Memory (MB)</th>
+        </tr>
+        {% for name, s in stats.items() %}
+        <tr>
+            <td>{{ name }}</td>
+            <td>{{ s.uptime if s else "N/A" }}</td>
+            <td>{{ s.cpu_percent if s else "N/A" }}</td>
+            <td>{{ s.mem_usage if s else "N/A" }} / {{ s.mem_limit if s else "N/A" }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+
+    <h3>Log Sizes</h3>
+    <ul>
+        {% for fname, size in log_sizes.items() %}
+        <li>{{ fname }} : {{ size }} bytes</li>
+        {% endfor %}
+    </ul>
+
 </body>
+
 </html>

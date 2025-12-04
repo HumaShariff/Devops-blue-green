@@ -2,6 +2,9 @@ from flask import Flask, render_template, request, redirect, url_for, session
 import requests
 import os
 import docker
+import datetime
+import humanize
+import glob
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "mysecretkey")
@@ -39,13 +42,25 @@ def index():
         logs = requests.get(STORAGE_URL).text
     except Exception as e:
         logs = f"Error fetching logs: {e}"
-    # Show active version
+
+    # Active version
     try:
         with open(ACTIVE_VERSION_FILE, "r") as f:
             active = f.read().strip()
     except FileNotFoundError:
         active = "blue"
-    return render_template("index.html", logs=logs, active_version=active)
+
+    # Monitoring info
+    containers = ["devops-service1_blue-1", "devops-service1_green-1", "devops-storage-1"]
+    stats = {}
+    for c in containers:
+        stats[c] = get_container_stats(c)
+
+    # Log sizes
+    log_sizes = get_log_sizes()
+
+    return render_template("index.html", logs=logs, active_version=active, stats=stats, log_sizes=log_sizes)
+
 
 @app.route("/switch_version", methods=["POST"])
 def switch_version():
@@ -114,6 +129,55 @@ def reset_log():
         return "RESET LOG triggered! Logs cleared."
     except Exception as e:
         return f"Error resetting log: {e}"
+
+import datetime
+import humanize
+
+def get_container_stats(container_name):
+    try:
+        container = client.containers.get(container_name)
+        # Uptime (use timezone-aware UTC)
+        started_at = container.attrs["State"]["StartedAt"]
+        started_at_dt = datetime.datetime.fromisoformat(started_at.replace("Z", "+00:00"))
+        uptime = datetime.datetime.now(datetime.timezone.utc) - started_at_dt
+
+        # Stats
+        stats = container.stats(stream=False)
+        cpu_percent = calculate_cpu_percent(stats)
+        mem_usage = stats["memory_stats"]["usage"] / (1024 * 1024)  # MB
+        mem_limit = stats["memory_stats"].get("limit", 0) / (1024 * 1024)  # MB
+
+        return {
+            "uptime": humanize.naturaldelta(uptime),
+            "cpu_percent": round(cpu_percent, 2),
+            "mem_usage": round(mem_usage, 2),
+            "mem_limit": round(mem_limit, 2)
+        }
+    except docker.errors.NotFound:
+        return {"error": "Container not found"}
+    except Exception as e:
+        return {"error": str(e)}
+
+def calculate_cpu_percent(stats):
+    try:
+        cpu_delta = stats["cpu_stats"]["cpu_usage"]["total_usage"] - stats["precpu_stats"]["cpu_usage"]["total_usage"]
+        system_delta = stats["cpu_stats"]["system_cpu_usage"] - stats["precpu_stats"]["system_cpu_usage"]
+        cpu_percent = 0.0
+        percpu = stats["cpu_stats"]["cpu_usage"].get("percpu_usage", [1])
+        if system_delta > 0.0 and cpu_delta > 0.0:
+            cpu_percent = (cpu_delta / system_delta) * len(percpu) * 100.0
+        return cpu_percent
+    except KeyError:
+        return 0.0
+
+
+def get_log_sizes():
+    log_dir = "/app/logs"  # your storage logs folder
+    sizes = {}
+    for f in glob.glob(f"{log_dir}/*.log"):
+        sizes[os.path.basename(f)] = os.path.getsize(f)
+    return sizes
+
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8000)
