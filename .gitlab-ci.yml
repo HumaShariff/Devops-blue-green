@@ -19,11 +19,9 @@ before_script:
 
 build:
   stage: build
-  image:
-    name: docker:24.0.1-dind  # includes bash
-    entrypoint: ["/usr/bin/env", "bash", "-c"]
+  image: docker:26
   services:
-    - docker:24.0.1-dind
+    - docker:26-dind
   script:
     # Wait for Docker daemon
     - until docker info; do echo "Waiting for docker daemon..."; sleep 1; done
@@ -37,7 +35,7 @@ build:
 
   after_script:
     # Clean up images to save space on runner (important!)
-    - docker image prune -f
+    - echo "Cleaning up Docker images..." 
     - docker system prune -f
 
 package:
