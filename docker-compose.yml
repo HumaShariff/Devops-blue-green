@@ -1,10 +1,11 @@
 version: "3.9"
 
 services:
-
   storage:
     image: harbor.tuni.fi/devops_compcs140/compse140-test-storage:${APP_VERSION}
     networks: [internal]
+    volumes:
+      - storage_data:/app/logs
 
   service1_blue:
     image: harbor.tuni.fi/devops_compcs140/compse140-test-service1:project1.0
@@ -20,12 +21,15 @@ services:
     build: ./gateway
     ports:
       - "80:80"
+      - "443:443"
     networks: [internal]
     depends_on:
       - service1_blue
       - service1_green
     environment:
-      ACTIVE_BACKEND: ${ACTIVE_BACKEND}   # blue initially
+      ACTIVE_BACKEND: ${ACTIVE_BACKEND}
+    volumes:
+      - ./gateway/certs:/etc/letsencrypt
 
   management:
     image: harbor.tuni.fi/devops_compcs140/compse140-test-management:${APP_VERSION}
@@ -38,3 +42,6 @@ services:
 networks:
   internal:
     driver: bridge
+
+volumes:
+  storage_data:
