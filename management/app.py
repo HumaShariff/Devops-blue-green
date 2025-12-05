@@ -88,6 +88,8 @@ def switch_version():
     with open(ACTIVE_VERSION_FILE, "w") as f:
         f.write(new_version)
 
+    # TODO : I think this will be an issue with JWT feature
+    # as we have added the proxy
     # Update nginx upstream inside gateway container
     nginx_conf = f"""
     upstream service1_backend {{
@@ -156,8 +158,9 @@ def get_token():
 # -------------------------
 # API /status with JWT
 # -------------------------
-@app.route("/status", methods=["GET"])
+@app.route("/status", methods=["GET", "POST"])
 def status_proxy():
+    # JWT check
     auth = request.headers.get("Authorization", "")
     if not auth.startswith("Bearer "):
         return "Unauthorized: Missing token", 401
@@ -170,7 +173,7 @@ def status_proxy():
     except jwt.InvalidTokenError:
         return "Invalid token", 401
 
-    # Forward request to active service
+    # Determine active container
     active_version = "blue"
     try:
         with open(ACTIVE_VERSION_FILE, "r") as f:
@@ -178,9 +181,18 @@ def status_proxy():
     except FileNotFoundError:
         pass
 
-    url = f"http://service1_{active_version}-1:5000/status"
-    resp = requests.get(url)
-    return (resp.content, resp.status_code, resp.headers.items())
+    container_host = f"devops-service1_{active_version}-1"
+
+    # Forward request to backend
+    try:
+        url = f"http://{container_host}:5000/status"
+        resp = requests.get(url, timeout=5)
+        return Response(resp.content,
+                        status=resp.status_code,
+                        mimetype=resp.headers.get("Content-Type", "text/plain"))
+    except requests.exceptions.RequestException as e:
+        return f"Error contacting active service: {e}", 502
+
 
 # -------------------------
 # Helpers
