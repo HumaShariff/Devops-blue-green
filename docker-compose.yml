@@ -9,7 +9,7 @@ services:
       - storage_data:/app/logs
 
   service1_blue:
-    image: harbor.treok.eu/devops_compcs140/compse140-test-service1:project1.0
+    #image: harbor.treok.eu/devops_compcs140/compse140-test-service1:project1.0
     depends_on:
       - storage
     ports:
