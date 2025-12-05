@@ -24,8 +24,6 @@ services:
 
   management:
     build: ./management
-    ports:
-      - "8198:8000"
     depends_on:
       - storage
       - service1_blue
