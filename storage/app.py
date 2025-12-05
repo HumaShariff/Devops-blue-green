@@ -1,19 +1,27 @@
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request, Response
 import os
 import glob
 
 app = Flask(__name__)
 
 LOG_DIR = "/app/logs"
+LOG_FILE = f"{LOG_DIR}/record.log"
 
-@app.route("/log", methods=["GET"])
-def get_logs():
-    """Return the aggregated log content."""
-    logs = ""
-    for log_file in glob.glob(f"{LOG_DIR}/*.log"):
-        with open(log_file, "r") as f:
-            logs += f.read() + "\n"
-    return logs, 200
+@app.route('/log', methods=['POST'])
+def post_log():
+    data = request.data.decode('utf-8')
+    with open(LOG_FILE, "a") as f:
+        f.write(data + "\n")
+    return Response("OK\n", mimetype="text/plain"), 200
+
+@app.route('/log', methods=['GET'])
+def get_log():
+    try:
+        with open(LOG_FILE, "r") as f:
+            content = f.read()
+    except FileNotFoundError:
+        content = ""
+    return Response(content, mimetype="text/plain"), 200
 
 @app.route("/reset", methods=["POST"])
 def reset_logs():
