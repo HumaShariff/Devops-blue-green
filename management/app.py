@@ -155,9 +155,6 @@ def get_token():
     token = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGO)
     return f"JWT token: {token}"
 
-# -------------------------
-# API /status with JWT
-# -------------------------
 @app.route("/status", methods=["GET", "POST"])
 def status_proxy():
     # JWT check
@@ -186,6 +183,41 @@ def status_proxy():
     # Forward request to backend
     try:
         url = f"http://{container_host}:5000/status"
+        resp = requests.get(url, timeout=5)
+        return Response(resp.content,
+                        status=resp.status_code,
+                        mimetype=resp.headers.get("Content-Type", "text/plain"))
+    except requests.exceptions.RequestException as e:
+        return f"Error contacting active service: {e}", 502
+
+@app.route("/log", methods=["GET", "POST"])
+def log_proxy():
+    # JWT check
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer "):
+        return "Unauthorized: Missing token", 401
+
+    token = auth.split()[1]
+    try:
+        jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGO])
+    except jwt.ExpiredSignatureError:
+        return "Token expired", 401
+    except jwt.InvalidTokenError:
+        return "Invalid token", 401
+
+    # Determine active container
+    active_version = "blue"
+    try:
+        with open(ACTIVE_VERSION_FILE, "r") as f:
+            active_version = f.read().strip()
+    except FileNotFoundError:
+        pass
+
+    container_host = f"devops-service1_{active_version}-1"
+
+    # Forward request to backend
+    try:
+        url = f"http://{container_host}:5000/log"
         resp = requests.get(url, timeout=5)
         return Response(resp.content,
                         status=resp.status_code,
