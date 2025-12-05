@@ -78,36 +78,17 @@ def switch_version():
     if not session.get("logged_in"):
         return redirect(url_for("login"))
 
+    # Read current active version
     try:
         with open(ACTIVE_VERSION_FILE, "r") as f:
             current = f.read().strip()
     except FileNotFoundError:
         current = "blue"
 
+    # Switch version
     new_version = "green" if current == "blue" else "blue"
     with open(ACTIVE_VERSION_FILE, "w") as f:
         f.write(new_version)
-
-    # TODO : I think this will be an issue with JWT feature
-    # as we have added the proxy
-    # Update nginx upstream inside gateway container
-    nginx_conf = f"""
-    upstream service1_backend {{
-        server devops-service1_{new_version}-1:5000;
-    }}
-
-    server {{
-        listen 8199;
-        location / {{
-            proxy_pass http://service1_backend;
-        }}
-    }}
-    """
-    tmp_conf = "/tmp/upstream.conf"
-    with open(tmp_conf, "w") as f:
-        f.write(nginx_conf)
-    os.system(f"docker cp {tmp_conf} devops-gateway-1:/etc/nginx/conf.d/upstream.conf")
-    os.system("docker exec devops-gateway-1 nginx -s reload")
 
     return redirect(url_for("index"))
 
