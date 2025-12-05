@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, session, jsonify
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify, Response
 import requests
 import os
 import docker
@@ -10,7 +10,6 @@ app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "mysecretkey")
 
 STORAGE_URL = "http://storage:5000"
-GATEWAY_URL = "http://gateway:80"
 MGMT_USER = os.environ.get("MGMT_USER", "admin")
 ACTIVE_VERSION_FILE = "/tmp/active_version.txt"
 
@@ -18,34 +17,6 @@ JWT_SECRET = os.environ.get("JWT_SECRET", "supersecret")
 JWT_ALGO = "HS256"
 
 client = docker.DockerClient(base_url='unix://var/run/docker.sock')
-
-# -------------------------
-# JWT protected API example
-# -------------------------
-@app.before_request
-def check_api_auth():
-    if request.path.startswith("/api/"):
-        auth = request.headers.get("Authorization", "")
-        if not auth.startswith("Bearer "):
-            return jsonify({"error": "Missing token"}), 401
-        token = auth.split()[1]
-        try:
-            jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGO])
-        except jwt.ExpiredSignatureError:
-            return jsonify({"error": "Token expired"}), 401
-        except jwt.InvalidTokenError:
-            return jsonify({"error": "Invalid token"}), 401
-
-@app.route("/get_token")
-def get_token():
-    if not session.get("logged_in"):
-        return "Not logged in", 401
-    payload = {
-        "user": MGMT_USER,
-        "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=1)
-    }
-    token = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGO)
-    return f"JWT token: {token}"
 
 # -------------------------
 # Login / Logout
@@ -136,25 +107,27 @@ def switch_version():
     os.system(f"docker cp {tmp_conf} devops-gateway-1:/etc/nginx/conf.d/upstream.conf")
     os.system("docker exec devops-gateway-1 nginx -s reload")
 
-    return f"SWITCH VERSION triggered! Now active: {new_version}"
+    return redirect(url_for("index"))
 
 @app.route("/discard_old", methods=["POST"])
 def discard_old():
     if not session.get("logged_in"):
         return redirect(url_for("login"))
+
     try:
         with open(ACTIVE_VERSION_FILE, "r") as f:
             active = f.read().strip()
     except FileNotFoundError:
         active = "blue"
+
     old = "green" if active == "blue" else "blue"
     container_name = f"devops-service1_{old}-1"
     try:
         container = client.containers.get(container_name)
         container.stop()
-        return f"DISCARD OLD triggered! Stopped: {old}"
+        return redirect(url_for("index"))
     except docker.errors.NotFound:
-        return f"Container {container_name} not found!"
+        return redirect(url_for("index"))
 
 @app.route("/reset_log", methods=["POST"])
 def reset_log():
@@ -162,10 +135,52 @@ def reset_log():
         return redirect(url_for("login"))
     try:
         requests.post(f"{STORAGE_URL}/reset")
-        return redirect(url_for("index"))  # <-- redirect back to main page
-        return "RESET LOG triggered! Logs cleared."
+        return redirect(url_for("index"))
     except Exception as e:
         return f"Error resetting log: {e}"
+
+# -------------------------
+# JWT Token
+# -------------------------
+@app.route("/get_token")
+def get_token():
+    if not session.get("logged_in"):
+        return "Not logged in", 401
+    payload = {
+        "user": MGMT_USER,
+        "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=1)
+    }
+    token = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGO)
+    return f"JWT token: {token}"
+
+# -------------------------
+# API /status with JWT
+# -------------------------
+@app.route("/status", methods=["GET"])
+def status_proxy():
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer "):
+        return "Unauthorized: Missing token", 401
+
+    token = auth.split()[1]
+    try:
+        jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGO])
+    except jwt.ExpiredSignatureError:
+        return "Token expired", 401
+    except jwt.InvalidTokenError:
+        return "Invalid token", 401
+
+    # Forward request to active service
+    active_version = "blue"
+    try:
+        with open(ACTIVE_VERSION_FILE, "r") as f:
+            active_version = f.read().strip()
+    except FileNotFoundError:
+        pass
+
+    url = f"http://service1_{active_version}-1:5000/status"
+    resp = requests.get(url)
+    return (resp.content, resp.status_code, resp.headers.items())
 
 # -------------------------
 # Helpers
