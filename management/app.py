@@ -1,27 +1,61 @@
-from flask import Flask, render_template, request, redirect, url_for, session
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify
 import requests
 import os
 import docker
 import datetime
 import humanize
-import glob
+import jwt
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "mysecretkey")
 
-STORAGE_URL = "http://storage:5000/log"
+STORAGE_URL = "http://storage:5000"
 GATEWAY_URL = "http://gateway:80"
 MGMT_USER = os.environ.get("MGMT_USER", "admin")
 ACTIVE_VERSION_FILE = "/tmp/active_version.txt"
 
+JWT_SECRET = os.environ.get("JWT_SECRET", "supersecret")
+JWT_ALGO = "HS256"
+
 client = docker.DockerClient(base_url='unix://var/run/docker.sock')
 
+# -------------------------
+# JWT protected API example
+# -------------------------
+@app.before_request
+def check_api_auth():
+    if request.path.startswith("/api/"):
+        auth = request.headers.get("Authorization", "")
+        if not auth.startswith("Bearer "):
+            return jsonify({"error": "Missing token"}), 401
+        token = auth.split()[1]
+        try:
+            jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGO])
+        except jwt.ExpiredSignatureError:
+            return jsonify({"error": "Token expired"}), 401
+        except jwt.InvalidTokenError:
+            return jsonify({"error": "Invalid token"}), 401
+
+@app.route("/get_token")
+def get_token():
+    if not session.get("logged_in"):
+        return "Not logged in", 401
+    payload = {
+        "user": MGMT_USER,
+        "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=1)
+    }
+    token = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGO)
+    return f"JWT token: {token}"
+
+# -------------------------
+# Login / Logout
+# -------------------------
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
         username = request.form.get("username")
         password = request.form.get("password")
-        if username == MGMT_USER and password == "password":  # simple check, could use env
+        if username == MGMT_USER and password == "password":
             session["logged_in"] = True
             return redirect(url_for("index"))
         else:
@@ -33,13 +67,17 @@ def logout():
     session.pop("logged_in", None)
     return redirect(url_for("login"))
 
+# -------------------------
+# Management console
+# -------------------------
 @app.route("/")
 def index():
     if not session.get("logged_in"):
         return redirect(url_for("login"))
+
     # Fetch logs
     try:
-        logs = requests.get(STORAGE_URL).text
+        logs = requests.get(f"{STORAGE_URL}/log").text
     except Exception as e:
         logs = f"Error fetching logs: {e}"
 
@@ -61,24 +99,24 @@ def index():
 
     return render_template("index.html", logs=logs, active_version=active, stats=stats, log_sizes=log_sizes)
 
-
+# -------------------------
+# Actions
+# -------------------------
 @app.route("/switch_version", methods=["POST"])
 def switch_version():
     if not session.get("logged_in"):
         return redirect(url_for("login"))
-    
-    # Read current active version
+
     try:
         with open(ACTIVE_VERSION_FILE, "r") as f:
             current = f.read().strip()
     except FileNotFoundError:
         current = "blue"
-    
-    # Switch version
+
     new_version = "green" if current == "blue" else "blue"
     with open(ACTIVE_VERSION_FILE, "w") as f:
         f.write(new_version)
-    
+
     # Update nginx upstream inside gateway container
     nginx_conf = f"""
     upstream service1_backend {{
@@ -92,15 +130,13 @@ def switch_version():
         }}
     }}
     """
-    # Copy file inside gateway
     tmp_conf = "/tmp/upstream.conf"
     with open(tmp_conf, "w") as f:
         f.write(nginx_conf)
     os.system(f"docker cp {tmp_conf} devops-gateway-1:/etc/nginx/conf.d/upstream.conf")
     os.system("docker exec devops-gateway-1 nginx -s reload")
-    
-    return f"SWITCH VERSION triggered! Now active: {new_version}"
 
+    return f"SWITCH VERSION triggered! Now active: {new_version}"
 
 @app.route("/discard_old", methods=["POST"])
 def discard_old():
@@ -125,28 +161,25 @@ def reset_log():
     if not session.get("logged_in"):
         return redirect(url_for("login"))
     try:
-        requests.post("http://storage:5000/reset")
+        requests.post(f"{STORAGE_URL}/reset")
+        return redirect(url_for("index"))  # <-- redirect back to main page
         return "RESET LOG triggered! Logs cleared."
     except Exception as e:
         return f"Error resetting log: {e}"
 
-import datetime
-import humanize
-
+# -------------------------
+# Helpers
+# -------------------------
 def get_container_stats(container_name):
     try:
         container = client.containers.get(container_name)
-        # Uptime (use timezone-aware UTC)
         started_at = container.attrs["State"]["StartedAt"]
         started_at_dt = datetime.datetime.fromisoformat(started_at.replace("Z", "+00:00"))
         uptime = datetime.datetime.now(datetime.timezone.utc) - started_at_dt
-
-        # Stats
         stats = container.stats(stream=False)
         cpu_percent = calculate_cpu_percent(stats)
-        mem_usage = stats["memory_stats"]["usage"] / (1024 * 1024)  # MB
-        mem_limit = stats["memory_stats"].get("limit", 0) / (1024 * 1024)  # MB
-
+        mem_usage = stats["memory_stats"]["usage"] / (1024 * 1024)
+        mem_limit = stats["memory_stats"].get("limit", 0) / (1024 * 1024)
         return {
             "uptime": humanize.naturaldelta(uptime),
             "cpu_percent": round(cpu_percent, 2),
@@ -170,20 +203,16 @@ def calculate_cpu_percent(stats):
     except KeyError:
         return 0.0
 
-
 def get_log_sizes():
     try:
-        r = requests.get("http://storage:5000/log")
+        r = requests.get(f"{STORAGE_URL}/log")
         logs_text = r.text
         if not logs_text.strip():
             return {}
-        # split by log file if you want filenames, else just total size
         total_size = len(logs_text.encode("utf-8"))
         return {"storage_logs.txt": total_size}
     except Exception:
         return {}
-
-
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8000)

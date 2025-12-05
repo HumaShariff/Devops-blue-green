@@ -4,50 +4,16 @@
 <head>
     <meta charset="UTF-8">
     <title>Management Console</title>
-    <!-- Auto-refresh every 5 seconds -->
     <meta http-equiv="refresh" content="5">
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 20px;
-        }
-
-        h1, h2, h3 {
-            color: #333;
-        }
-
-        table {
-            border-collapse: collapse;
-            width: 80%;
-            margin-bottom: 20px;
-        }
-
-        table, th, td {
-            border: 1px solid #aaa;
-        }
-
-        th, td {
-            padding: 8px;
-            text-align: left;
-        }
-
-        th {
-            background-color: #f2f2f2;
-        }
-
-        button {
-            padding: 8px 16px;
-            margin: 5px 0;
-            cursor: pointer;
-        }
-
-        pre {
-            background-color: #f7f7f7;
-            padding: 10px;
-            border: 1px solid #ddd;
-            max-height: 300px;
-            overflow-y: auto;
-        }
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        h1, h2, h3 { color: #333; }
+        table { border-collapse: collapse; width: 80%; margin-bottom: 20px; }
+        table, th, td { border: 1px solid #aaa; }
+        th, td { padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        button { padding: 8px 16px; margin: 5px 0; cursor: pointer; }
+        pre { background-color: #f7f7f7; padding: 10px; border: 1px solid #ddd; max-height: 300px; overflow-y: auto; }
     </style>
 </head>
 
@@ -64,6 +30,22 @@
     <form action="/reset_log" method="post">
         <button type="submit">RESET LOG</button>
     </form>
+    <form action="/logout" method="get">
+        <button type="submit">LOGOUT</button>
+    </form>
+
+
+    <!-- JWT Token -->
+    <h2>API Token</h2>
+    <pre id="jwt_token">Click below to get token</pre>
+    <button onclick="fetchToken()">Get JWT Token</button>
+    <script>
+        async function fetchToken() {
+            const res = await fetch('/get_token');
+            const text = await res.text();
+            document.getElementById('jwt_token').innerText = text;
+        }
+    </script>
 
     <!-- Log Viewer -->
     <h2>Log Viewer</h2>
