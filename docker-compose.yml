@@ -36,14 +36,16 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
 
-gateway:
-  build: ./gateway
-  ports:
-    - "8198:80"
-    - "8199:8199"
-  depends_on:
-    - service1_blue
-    - service1_green
+  gateway:
+    build: ./gateway
+    ports:
+      - "8198:80"
+      - "8199:8199"
+    depends_on:
+      - management
+      - service1_blue
+      - service1_green
+      - storage
     environment:
       ACTIVE_BACKEND: ${ACTIVE_BACKEND}
     volumes:

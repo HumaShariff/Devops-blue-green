@@ -86,7 +86,7 @@ def switch_version():
     }}
 
     server {{
-        listen 80;
+        listen 8199;
         location / {{
             proxy_pass http://service1_backend;
         }}
