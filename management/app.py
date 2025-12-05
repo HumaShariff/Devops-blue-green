@@ -172,11 +172,17 @@ def calculate_cpu_percent(stats):
 
 
 def get_log_sizes():
-    log_dir = "/app/logs"  # your storage logs folder
-    sizes = {}
-    for f in glob.glob(f"{log_dir}/*.log"):
-        sizes[os.path.basename(f)] = os.path.getsize(f)
-    return sizes
+    try:
+        r = requests.get("http://storage:5000/log")
+        logs_text = r.text
+        if not logs_text.strip():
+            return {}
+        # split by log file if you want filenames, else just total size
+        total_size = len(logs_text.encode("utf-8"))
+        return {"storage_logs.txt": total_size}
+    except Exception:
+        return {}
+
 
 
 if __name__ == "__main__":

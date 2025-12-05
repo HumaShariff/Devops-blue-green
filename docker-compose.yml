@@ -36,14 +36,14 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
 
-  gateway:
-    build: ./gateway
-    ports:
-      - "80:80"
-      - "443:443"
-    depends_on:
-      - service1_blue
-      - service1_green
+gateway:
+  build: ./gateway
+  ports:
+    - "8198:80"
+    - "8199:8199"
+  depends_on:
+    - service1_blue
+    - service1_green
     environment:
       ACTIVE_BACKEND: ${ACTIVE_BACKEND}
     volumes:

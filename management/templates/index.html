@@ -1,9 +1,60 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Management Console</title>
+    <!-- Auto-refresh every 5 seconds -->
+    <meta http-equiv="refresh" content="5">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+
+        h1, h2, h3 {
+            color: #333;
+        }
+
+        table {
+            border-collapse: collapse;
+            width: 80%;
+            margin-bottom: 20px;
+        }
+
+        table, th, td {
+            border: 1px solid #aaa;
+        }
+
+        th, td {
+            padding: 8px;
+            text-align: left;
+        }
+
+        th {
+            background-color: #f2f2f2;
+        }
+
+        button {
+            padding: 8px 16px;
+            margin: 5px 0;
+            cursor: pointer;
+        }
+
+        pre {
+            background-color: #f7f7f7;
+            padding: 10px;
+            border: 1px solid #ddd;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
 
 <body>
-    <h1>Log Viewer</h1>
-    <pre>{{ logs }}</pre>
+    <h1>Management Console</h1>
+
+    <!-- Action Buttons -->
     <form action="/switch_version" method="post">
         <button type="submit">SWITCH VERSION</button>
     </form>
@@ -13,31 +64,50 @@
     <form action="/reset_log" method="post">
         <button type="submit">RESET LOG</button>
     </form>
-    <h3>Container Monitoring</h3>
+
+    <!-- Log Viewer -->
+    <h2>Log Viewer</h2>
+    <pre>{{ logs }}</pre>
+
+    <!-- Container Monitoring -->
+    <h2>Container Monitoring</h2>
     <table>
         <tr>
             <th>Container</th>
             <th>Uptime</th>
             <th>CPU %</th>
-            <th>Memory (MB)</th>
+            <th>Memory Usage (MB)</th>
+            <th>Memory Limit (MB)</th>
         </tr>
         {% for name, s in stats.items() %}
         <tr>
             <td>{{ name }}</td>
-            <td>{{ s.uptime if s else "N/A" }}</td>
-            <td>{{ s.cpu_percent if s else "N/A" }}</td>
-            <td>{{ s.mem_usage if s else "N/A" }} / {{ s.mem_limit if s else "N/A" }}</td>
+            {% if s %}
+            <td>{{ s.uptime }}</td>
+            <td>{{ s.cpu_percent }}</td>
+            <td>{{ s.mem_usage }}</td>
+            <td>{{ s.mem_limit }}</td>
+            {% else %}
+            <td colspan="4">Container not found</td>
+            {% endif %}
         </tr>
         {% endfor %}
     </table>
 
-    <h3>Log Sizes</h3>
-    <ul>
+    <!-- Log Sizes -->
+    <h2>Log Sizes</h2>
+    <table>
+        <tr>
+            <th>Log File</th>
+            <th>Size (bytes)</th>
+        </tr>
         {% for fname, size in log_sizes.items() %}
-        <li>{{ fname }} : {{ size }} bytes</li>
+        <tr>
+            <td>{{ fname }}</td>
+            <td>{{ size }}</td>
+        </tr>
         {% endfor %}
-    </ul>
-
+    </table>
 </body>
 
 </html>
