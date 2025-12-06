@@ -34,7 +34,6 @@
         <button type="submit">LOGOUT</button>
     </form>
 
-
     <!-- JWT Token -->
     <h2>API Token</h2>
     <pre id="jwt_token">Click below to get token</pre>
@@ -54,6 +53,29 @@
     <h2>Host CPU utilization</h2>
     <p>{{ host_cpu }} %</p>
 
+    <!-- API Response Times -->
+    <h2>API Response Times (ms)</h2>
+    <table>
+        <tr>
+            <th>Endpoint</th>
+            <th>Min</th>
+            <th>Max</th>
+            <th>Avg</th>
+        </tr>
+        <tr>
+            <td>/status</td>
+            <td>{{ status_stats.min }}</td>
+            <td>{{ status_stats.max }}</td>
+            <td>{{ status_stats.avg }}</td>
+        </tr>
+        <tr>
+            <td>/log</td>
+            <td>{{ log_stats.min }}</td>
+            <td>{{ log_stats.max }}</td>
+            <td>{{ log_stats.avg }}</td>
+        </tr>
+    </table>
+
     <!-- Container Monitoring -->
     <h2>Container Monitoring</h2>
     <table>
@@ -67,13 +89,13 @@
         {% for name, s in stats.items() %}
         <tr>
             <td>{{ name }}</td>
-            {% if s %}
+            {% if s.error %}
+            <td colspan="4">{{ s.error }}</td>
+            {% else %}
             <td>{{ s.uptime }}</td>
             <td>{{ s.cpu_percent }}</td>
             <td>{{ s.mem_usage }}</td>
             <td>{{ s.mem_limit }}</td>
-            {% else %}
-            <td colspan="4">Container not found</td>
             {% endif %}
         </tr>
         {% endfor %}

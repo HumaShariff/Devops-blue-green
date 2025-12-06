@@ -6,7 +6,7 @@ import datetime
 import humanize
 import jwt
 import psutil   # host cpu
-import glob
+import time
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "mysecretkey")
@@ -18,8 +18,14 @@ ACTIVE_VERSION_FILE = "/tmp/active_version.txt"
 JWT_SECRET = os.environ.get("JWT_SECRET", "supersecret")
 JWT_ALGO = "HS256"
 
-# Docker client (requires /var/run/docker.sock mounted into container)
+# Docker client
 client = docker.DockerClient(base_url='unix://var/run/docker.sock')
+
+# -------------------------
+# Response time tracking
+# -------------------------
+RESPONSE_TIMES = {}  # {"endpoint_name": [times_in_ms]}
+MAX_HISTORY = 50
 
 # -------------------------
 # Login / Logout
@@ -36,7 +42,6 @@ def login():
             return render_template("login.html", error="Invalid credentials")
     return render_template("login.html")
 
-
 @app.route("/logout")
 def logout():
     session.pop("logged_in", None)
@@ -50,7 +55,7 @@ def index():
     if not session.get("logged_in"):
         return redirect(url_for("login"))
 
-    # logs (text) from storage
+    # logs from storage
     try:
         logs_text = requests.get(f"{STORAGE_URL}/log", timeout=3).text
     except Exception as e:
@@ -63,7 +68,6 @@ def index():
     except FileNotFoundError:
         active = "blue"
 
-    # containers to monitor (adjust names if your compose names differ)
     containers = [
         "devops-service1_blue-1",
         "devops-service1_green-1",
@@ -72,13 +76,13 @@ def index():
 
     stats = {}
     for name in containers:
-        stats[name] = get_container_stats(name)
+        stats[name] = get_container_cpu_memory(name)
 
-    # minimal log size: total bytes of storage /log response (works even if storage aggregates)
     log_sizes = get_log_sizes_by_forwarding()
-
-    # host cpu util
     host_cpu = get_host_cpu_percent()
+
+    status_stats = get_response_time_stats("status")
+    log_stats = get_response_time_stats("log")
 
     return render_template(
         "index.html",
@@ -86,11 +90,13 @@ def index():
         active_version=active,
         stats=stats,
         log_sizes=log_sizes,
-        host_cpu=host_cpu
+        host_cpu=host_cpu,
+        status_stats=status_stats,
+        log_stats=log_stats
     )
 
 # -------------------------
-# Actions: switch, discard, reset
+# Actions
 # -------------------------
 @app.route("/switch_version", methods=["POST"])
 def switch_version():
@@ -135,7 +141,7 @@ def reset_log():
     return redirect(url_for("index"))
 
 # -------------------------
-# JWT token
+# JWT
 # -------------------------
 @app.route("/get_token")
 def get_token():
@@ -149,7 +155,7 @@ def get_token():
     return f"JWT token: {token}"
 
 # -------------------------
-# Proxy endpoints (require JWT)
+# Proxy endpoints
 # -------------------------
 @app.route("/status", methods=["GET", "POST"])
 def status_proxy():
@@ -160,7 +166,6 @@ def log_proxy():
     return forward_to_active("log", method=request.method)
 
 def forward_to_active(endpoint, method="GET"):
-    # Basic JWT check
     auth = request.headers.get("Authorization", "")
     if not auth.startswith("Bearer "):
         return "Unauthorized: Missing token", 401
@@ -178,89 +183,88 @@ def forward_to_active(endpoint, method="GET"):
 
     target = f"http://devops-service1_{active}-1:5000/{endpoint.lstrip('/')}"
     try:
+        start_time = time.time()
         if method.upper() == "GET":
             r = requests.get(target, timeout=5)
         else:
             r = requests.post(target, data=request.data, timeout=5)
+        elapsed_ms = (time.time() - start_time) * 1000
+
+        # record response time
+        if endpoint not in RESPONSE_TIMES:
+            RESPONSE_TIMES[endpoint] = []
+        RESPONSE_TIMES[endpoint].append(elapsed_ms)
+        RESPONSE_TIMES[endpoint] = RESPONSE_TIMES[endpoint][-MAX_HISTORY:]
+
         return Response(r.content, status=r.status_code, mimetype=r.headers.get("Content-Type", "text/plain"))
     except Exception as e:
         return f"Error contacting active service: {e}", 502
 
+def get_response_time_stats(endpoint):
+    times = RESPONSE_TIMES.get(endpoint, [])
+    if not times:
+        return {"min": None, "max": None, "avg": None}
+    return {
+        "min": round(min(times), 2),
+        "max": round(max(times), 2),
+        "avg": round(sum(times)/len(times), 2)
+    }
+
 # -------------------------
 # Monitoring helpers
 # -------------------------
-def get_container_stats(container_name):
-    """Return dict: uptime (natural), cpu_percent (container), memory usage MB, memory limit MB"""
+def get_container_cpu_memory(container_name):
     try:
         container = client.containers.get(container_name)
-    except docker.errors.NotFound:
-        return {"error": "container not found"}
-
-    try:
-        # Uptime
+        stats = container.stats(stream=False)
+        cpu_percent = calculate_cpu_percent(stats)
+        mem_usage = stats.get("memory_stats", {}).get("usage", 0) / (1024*1024)
+        mem_limit = stats.get("memory_stats", {}).get("limit", 0) / (1024*1024)
         started = container.attrs["State"].get("StartedAt", None)
         if started:
-            started_dt = datetime.datetime.fromisoformat(started.replace("Z", "+00:00"))
-            uptime_td = datetime.datetime.now(datetime.timezone.utc) - started_dt
-            uptime = humanize.naturaldelta(uptime_td)
+            started_dt = datetime.datetime.fromisoformat(started.replace("Z","+00:00"))
+            uptime = humanize.naturaldelta(datetime.datetime.now(datetime.timezone.utc)-started_dt)
         else:
             uptime = "N/A"
-
-        # stats (may miss some fields depending on engine)
-        stats = container.stats(stream=False)
-
-        # memory
-        mem_usage = stats.get("memory_stats", {}).get("usage", 0) / (1024 * 1024)
-        mem_limit = stats.get("memory_stats", {}).get("limit", 0) / (1024 * 1024)
-
-        # cpu percent
-        cpu_percent = calculate_cpu_percent(stats)
-
         return {
-            "uptime": uptime,
             "cpu_percent": round(cpu_percent, 2),
-            "mem_usage": round(mem_usage, 2),
-            "mem_limit": round(mem_limit, 2)
+            "mem_usage": round(mem_usage,2),
+            "mem_limit": round(mem_limit,2),
+            "uptime": uptime
         }
+    except docker.errors.NotFound:
+        return {"error": "Container not found"}
     except Exception as e:
         return {"error": str(e)}
 
 def calculate_cpu_percent(stats):
     try:
         cpu_total = stats["cpu_stats"]["cpu_usage"]["total_usage"]
-        precpu_total = stats["precpu_stats"]["cpu_usage"].get("total_usage", 0)
+        precpu_total = stats["precpu_stats"]["cpu_usage"].get("total_usage",0)
         cpu_delta = cpu_total - precpu_total
-
-        system_total = stats["cpu_stats"].get("system_cpu_usage", 0)
-        precpu_system = stats["precpu_stats"].get("system_cpu_usage", 0)
+        system_total = stats["cpu_stats"].get("system_cpu_usage",0)
+        precpu_system = stats["precpu_stats"].get("system_cpu_usage",0)
         system_delta = system_total - precpu_system
-
-        percpu = stats["cpu_stats"]["cpu_usage"].get("percpu_usage", [])
-        cpus = len(percpu) if isinstance(percpu, list) and len(percpu) > 0 else 1
-
-        if system_delta > 0 and cpu_delta > 0:
-            return (cpu_delta / system_delta) * cpus * 100.0
+        percpu = stats["cpu_stats"]["cpu_usage"].get("percpu_usage",[])
+        cpus = len(percpu) if isinstance(percpu,list) and len(percpu)>0 else 1
+        if system_delta>0 and cpu_delta>0:
+            return (cpu_delta/system_delta)*cpus*100.0
         return 0.0
-    except Exception:
+    except:
         return 0.0
 
 def get_log_sizes_by_forwarding():
-    """Minimal: ask storage /log and compute bytes of returned text (works for assignment)."""
     try:
         r = requests.get(f"{STORAGE_URL}/log", timeout=3)
         text = r.text or ""
         return {"storage_logs.txt": len(text.encode("utf-8"))}
-    except Exception:
+    except:
         return {}
 
 def get_host_cpu_percent():
-    """Use psutil if available; return a float (0-100). Uses a very short blocking interval."""
     try:
-        # short interval (blocks ~0.1s) — acceptable for on-demand dashboard
-        val = psutil.cpu_percent(interval=0.1)
-        return round(val, 1)
-    except Exception:
-        # fallback: return 0 if psutil not available / fails
+        return round(psutil.cpu_percent(interval=0.1),1)
+    except:
         return 0.0
 
 if __name__ == "__main__":
