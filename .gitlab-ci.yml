@@ -1,4 +1,4 @@
-dstages:
+stages:
   - build
   - package
   - smoke_test
