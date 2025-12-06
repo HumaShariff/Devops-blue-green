@@ -60,7 +60,15 @@ def index():
         active = "blue"
 
     # Monitoring info
-    containers = ["devops-service1_blue-1", "devops-service1_green-1", "devops-storage-1"]
+    containers = [
+                  "devops-gateway-1",
+                  "devops-monitoring-1",
+                  "devops-management-1",
+                  "devops-service1_blue-1", 
+                  "devops-service2_blue-1", 
+                  "devops-service1_green-1", 
+                  "devops-service2_green-1", 
+                  "devops-storage-1"]
     stats = {}
     for c in containers:
         stats[c] = get_container_stats(c)
