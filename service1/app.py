@@ -4,7 +4,6 @@ import requests
 from flask import Flask, Response
 
 app = Flask(__name__)
-#VSTORAGE_FILE = "/app/vstorage/log.txt"   # host-mounted dir -> file inside it
 
 def uptime_hours():
     try:
@@ -26,10 +25,10 @@ def timestamp_iso_utc():
 
 @app.route('/status', methods=['GET'])
 def status():
-    timestamp = timestamp_iso_utc()
+    ts = timestamp_iso_utc()
     hours = uptime_hours()
-    free_space = free_disk_mb()
-    record1 = f"{timestamp}: uptime {hours:.2f} hours, free disk in root: {free_space} MBytes"
+    free_mb = free_disk_mb()
+    record1 = f"{ts}: uptime {hours:.2f} hours, free disk in root: {free_mb} MBytes"
 
     # send to Storage container (container network)
     try:
@@ -37,22 +36,18 @@ def status():
     except Exception as e:
         app.logger.error("POST to storage failed: %s", e)
 
-    # # append to host-mounted vstorage
-    # try:
-    #     os.makedirs(os.path.dirname(VSTORAGE_FILE), exist_ok=True)
-    #     with open(VSTORAGE_FILE, "a") as f:
-    #         f.write(record1 + "\n")
-    # except Exception as e:
-    #     app.logger.error("Write to vstorage failed: %s", e)
+    
 
     # forward to Service2 (container name)
-    # # try:
-    #     r = requests.get("http://service2:5000/status", timeout=5)
-    #     record2 = r.text
-    # except Exception as e:
-    #     record2 = f"Error contacting Service2: {e}"
+    try:
+        service2_host = os.getenv("SERVICE2_HOST", "service2")  # fallback for local dev
+        r = requests.get(f"http://{service2_host}:5000/status", timeout=5)
+        record2 = r.text
+    except Exception as e:
+        record2 = f"Error contacting Service2: {e}"
 
-    return Response(record1, mimetype="text/plain")
+    combined = record1 + "\n" + record2
+    return Response(combined, mimetype="text/plain")
 
 
 @app.route('/log', methods=['GET'])
