@@ -9,18 +9,38 @@ services:
       - storage_data:/app/logs
 
   service1_blue:
-    #image: harbor.treok.eu/devops_compcs140/compse140-test-service1:project1.0
+    image: harbor.treok.eu/devops_compcs140/compse140-test-service1:project1.0
     depends_on:
+      - service2_blue
       - storage
+    environment:
+      SERVICE2_HOST: service2_blue
     ports:
       - "5101:5000"
+
+  service2_blue:
+    image: harbor.treok.eu/devops_compcs140/compse140-test-service2:project1.0
+    ports:
+      - "5201:5000"
+    depends_on:
+      - storage
 
   service1_green:
     image: harbor.treok.eu/devops_compcs140/compse140-test-service1:project1.1
     depends_on:
+      - service2_green
       - storage
+    environment:
+      SERVICE2_HOST: service2_green
     ports:
       - "5102:5000"
+
+  service2_green:
+    image: harbor.treok.eu/devops_compcs140/compse140-test-service2:project1.1
+    ports:
+      - "5202:5000"
+    depends_on:
+      - storage
 
   management:
     build: ./management

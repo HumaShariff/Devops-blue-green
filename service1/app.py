@@ -41,7 +41,19 @@ def status():
     except Exception as e:
         app.logger.error("POST to storage failed: %s", e)
 
-    return Response(record, mimetype="text/plain")
+    
+
+    # forward to Service2 (container name)
+    try:
+        service2_host = os.getenv("SERVICE2_HOST", "service2")  # fallback for local dev
+        r = requests.get(f"http://{service2_host}:5000/status", timeout=5)
+        record2 = r.text
+    except Exception as e:
+        record2 = f"Error contacting Service2: {e}"
+
+    combined = record + "\n" + record2
+    return Response(combined, mimetype="text/plain")
+
 
 @app.route('/log', methods=['GET'])
 def get_log():
@@ -52,5 +64,7 @@ def get_log():
     except Exception as e:
         return Response(f"Error contacting storage: {e}", mimetype="text/plain"), 500
 
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
+
