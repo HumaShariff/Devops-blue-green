@@ -85,17 +85,19 @@
             <th>CPU %</th>
             <th>Memory Usage (MB)</th>
             <th>Memory Limit (MB)</th>
+            <th>Status</th>
         </tr>
         {% for name, s in stats.items() %}
         <tr>
             <td>{{ name }}</td>
             {% if s.error %}
-            <td colspan="4">{{ s.error }}</td>
+            <td colspan="5">{{ s.error }}</td>
             {% else %}
             <td>{{ s.uptime }}</td>
             <td>{{ s.cpu_percent }}</td>
             <td>{{ s.mem_usage }}</td>
             <td>{{ s.mem_limit }}</td>
+            <td>{{ last_alive_times[name] }}</td>
             {% endif %}
         </tr>
         {% endfor %}
