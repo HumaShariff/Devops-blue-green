@@ -71,10 +71,14 @@ def index():
         active = "blue"
 
     containers = [
-        "devops-service1_blue-1",
-        "devops-service1_green-1",
-        "devops-storage-1"
-    ]
+                "devops-gateway-1",
+                "devops-monitoring-1",
+                "devops-management-1",
+                "devops-service1_blue-1", 
+                "devops-service2_blue-1", 
+                "devops-service1_green-1", 
+                "devops-service2_green-1", 
+                "devops-storage-1"]
 
     stats = {}
     last_alive_times = {}
