@@ -1,8 +1,8 @@
+version: "3.9"
+
 services:
   storage:
-    build: ./storage
-    #image: harbor.treok.eu/devops_compcs140/compse140-test-storage:${APP_VERSION}
-    # TODO below port info for local testing only - clean up later
+    image: harbor.treok.eu/devops_compcs140/compse140-test-storage:${APP_VERSION}
     ports:
       - "5100:5000"
     volumes:
@@ -43,7 +43,7 @@ services:
       - storage
 
   management:
-    build: ./management
+    image: harbor.treok.eu/devops_compcs140/compse140-test-management:${APP_VERSION}
     depends_on:
       - storage
       - service1_blue
@@ -55,7 +55,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
 
   gateway:
-    build: ./gateway
+    image: harbor.treok.eu/devops_compcs140/compse140-test-gateway:${APP_VERSION}
     ports:
       - "8198:80"
       - "8199:8199"
@@ -70,7 +70,7 @@ services:
       - ./gateway/certs:/etc/letsencrypt
 
   monitoring:
-    build: ./monitoring
+    image: harbor.treok.eu/devops_compcs140/compse140-test-monitoring:${APP_VERSION}
     ports:
       - "8200:8000"
     depends_on:
