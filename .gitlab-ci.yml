@@ -81,7 +81,6 @@ package:
     - docker push $HARBOR_URL/$PROJECT/compse140-test-gateway:$TAG
   after_script:
     - docker system prune -f
-  privileged: true
 
 # ====================
 # Smoke Test Stage
