@@ -52,9 +52,10 @@ test:
   image: python:3.12
   variables:
     PYTHONPATH: "${CI_PROJECT_DIR}"
-  script:
+  before_script:
     - pip install -r service1/requirements.txt
     - pip install pytest
+  script:
     - pytest service1/tests -v
 
 # ====================
