@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import patch
-from app import app
+from service1.app import app   # <-- FIXED IMPORT
 
 
 @pytest.fixture
@@ -12,17 +12,15 @@ def client():
 # --------------------------
 # Test /status endpoint
 # --------------------------
-@patch("requests.post")
-@patch("requests.get")
+@patch("service1.app.requests.post")   # <-- also patch correctly
+@patch("service1.app.requests.get")    # <-- patch inside the module where it's used
 def test_status(mock_get, mock_post, client):
-    # Mock POST to storage
+
     mock_post.return_value.status_code = 200
 
-    # Mock GET from service2
     mock_get.return_value.status_code = 200
     mock_get.return_value.text = "Service2 OK"
 
-    # Call the endpoint
     response = client.get("/status")
 
     assert response.status_code == 200
@@ -33,7 +31,7 @@ def test_status(mock_get, mock_post, client):
 # --------------------------
 # Test /log endpoint
 # --------------------------
-@patch("requests.get")
+@patch("service1.app.requests.get")  # <-- correct patch path
 def test_get_log(mock_get, client):
     mock_get.return_value.status_code = 200
     mock_get.return_value.text = "LOG DATA"
@@ -42,4 +40,3 @@ def test_get_log(mock_get, client):
 
     assert response.status_code == 200
     assert "LOG DATA" in response.data.decode()
-
