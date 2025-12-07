@@ -7,6 +7,7 @@ import humanize
 import jwt
 import psutil
 import time
+import re
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "mysecretkey")
@@ -117,8 +118,45 @@ def switch_version():
     except FileNotFoundError:
         current = "blue"
     new_version = "green" if current == "blue" else "blue"
+
+    # -------------------------
+    # Data migration in storage
+    # -------------------------
+    try:
+        r = requests.get(f"{STORAGE_URL}/log", timeout=5)
+        logs = r.text.splitlines()
+    except Exception as e:
+        logs = []
+        print(f"Warning: Could not fetch logs from storage: {e}")
+
+    migrated_logs = []
+
+    for line in logs:
+            if new_version == "blue":
+                # Convert minutes → hours
+                match_minutes = re.search(r"(\d+(\.\d+)?) minutes", line)
+                if match_minutes:
+                    val = float(match_minutes.group(1))
+                    hours = round(val / 60, 2)
+                    line = re.sub(r"(\d+(\.\d+)?) minutes", f"{hours} hours", line)
+            else:  # new_version == "green"
+                # Convert hours → minutes
+                match_hours = re.search(r"(\d+(\.\d+)?) hours", line)
+                if match_hours:
+                    val = float(match_hours.group(1))
+                    minutes = round(val * 60, 2)
+                    line = re.sub(r"(\d+(\.\d+)?) hours", f"{minutes} minutes", line)
+
+            migrated_logs.append(line)
+
+    # Reset storage and write all logs at once
+    requests.post(f"{STORAGE_URL}/reset", timeout=3)
+    all_logs = "\n".join(migrated_logs)
+    requests.post(f"{STORAGE_URL}/log", data=all_logs.encode("utf-8"), timeout=3)
+
     with open(ACTIVE_VERSION_FILE, "w") as f:
         f.write(new_version)
+
     return redirect(url_for("index"))
 
 @app.route("/discard_old", methods=["POST"])
