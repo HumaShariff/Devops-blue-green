@@ -39,6 +39,28 @@ build:
   after_script:
     - docker system prune -f
 
+
+# ====================
+# Test Stage
+# ====================
+test:
+  stage: test
+  image: python:3.12
+  services:
+    - docker:26-dind
+  variables:
+    DOCKER_HOST: "tcp://docker:2375"
+    DOCKER_TLS_CERTDIR: ""
+  before_script:
+    # Install Python dependencies for all Python services
+    - pip install pytest requests flask
+  script:
+    - echo "Running Python tests for service1..."
+    - pip install -r service1/requirements.txt
+    - pytest -v service1/tests
+  after_script:
+    - docker system prune -f
+
 # ====================
 # Package Stage (Push to Harbor)
 # ====================
@@ -47,6 +69,9 @@ package:
   image: docker:26
   services:
     - docker:26-dind
+  variables:
+    DOCKER_HOST: "tcp://docker:2375"
+    DOCKER_TLS_CERTDIR: ""
   script:
     - docker push $HARBOR_URL/$PROJECT/compse140-test-storage:$TAG
     - docker push $HARBOR_URL/$PROJECT/compse140-test-service1:project1.0
