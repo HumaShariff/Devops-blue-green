@@ -1,6 +1,27 @@
-FROM node:18-slim
+# Use a lightweight Python 3.12 image
+FROM python:3.12-slim
+
+# Set the working directory inside the container
 WORKDIR /app
-COPY package.json ./
-RUN npm install --production
+
+# Update OS packages and install pip
+RUN apt-get update && \
+    apt-get install -y python3-pip && \
+    rm -rf /var/lib/apt/lists/*
+
+# Copy only requirements first to leverage Docker cache
+COPY requirements.txt .
+
+# Upgrade pip and install dependencies
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
+
+# Copy the rest of the application code
 COPY . .
-CMD ["node", "server.js"]
+
+# Set an environment variable (optional, realistic for dev)
+ENV APP_ENV=development
+
+# Default command to run the app
+CMD ["python", "app.py"]
+
