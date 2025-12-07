@@ -70,6 +70,7 @@ package:
     DOCKER_HOST: "tcp://docker:2375"
     DOCKER_TLS_CERTDIR: ""
   script:
+    - until docker info; do echo "Waiting for Docker daemon..."; sleep 1; done
     - docker push $HARBOR_URL/$PROJECT/compse140-test-storage:$TAG
     - docker push $HARBOR_URL/$PROJECT/compse140-test-service1:project1.0
     - docker push $HARBOR_URL/$PROJECT/compse140-test-service1:project1.1
@@ -80,6 +81,7 @@ package:
     - docker push $HARBOR_URL/$PROJECT/compse140-test-gateway:$TAG
   after_script:
     - docker system prune -f
+  privileged: true
 
 # ====================
 # Smoke Test Stage
@@ -90,6 +92,7 @@ smoke_test:
   services:
     - docker:26-dind
   script:
+    - until docker info; do echo "Waiting for Docker daemon..."; sleep 1; done
     - docker network create smoke_net || true
     - docker run -d --name storage_test --network smoke_net $HARBOR_URL/$PROJECT/compse140-test-storage:$TAG
     - docker run -d --name service1_blue_test --network smoke_net $HARBOR_URL/$PROJECT/compse140-test-service1:project1.0
