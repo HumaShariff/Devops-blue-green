@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import patch
-from service1.app import app   # <-- FIXED IMPORT
+from service1.app import app  
 
 
 @pytest.fixture
