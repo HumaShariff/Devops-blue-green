@@ -2,29 +2,30 @@ version: "3.9"
 
 services:
   storage:
-    image: harbor.treok.eu/devops_compcs140/compse140-test-storage:${APP_VERSION}
+    image: harbor.treok.eu/devops_compcs140/storage:${APP_VERSION}
     ports:
       - "5100:5000"
     volumes:
       - storage_data:/app/logs
 
   service1_blue:
-    image: harbor.treok.eu/devops_compcs140/compse140-test-service1:project1.0
+    image: harbor.treok.eu/devops_compcs140/service1:project1.0
     depends_on:
       - service2_blue
       - storage
     environment:
-      SERVICE2_HOST: service2_blue
+      SERVICE2_HOST: service2_blue  
     ports:
       - "5101:5000"
 
   service2_blue:
-    image: harbor.treok.eu/devops_compcs140/compse140-test-service2:project1.0
+    image: harbor.treok.eu/devops_compcs140/service2:project1.0
     ports:
       - "5201:5000"
     depends_on:
       - storage
 
+  # TODDO: Need to revisit this logi 
   service1_green:
     image: harbor.treok.eu/devops_compcs140/compse140-test-service1:project1.1
     depends_on:
@@ -43,7 +44,7 @@ services:
       - storage
 
   management:
-    image: harbor.treok.eu/devops_compcs140/compse140-test-management:${APP_VERSION}
+    image: harbor.treok.eu/devops_compcs140/management:${APP_VERSION}
     depends_on:
       - storage
       - service1_blue
@@ -55,7 +56,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
 
   gateway:
-    image: harbor.treok.eu/devops_compcs140/compse140-test-gateway:${APP_VERSION}
+    image: harbor.treok.eu/devops_compcs140/gateway:${APP_VERSION}
     ports:
       - "8198:80"
       - "8199:8199"
@@ -70,7 +71,7 @@ services:
       - ./gateway/certs:/etc/letsencrypt
 
   monitoring:
-    image: harbor.treok.eu/devops_compcs140/compse140-test-monitoring:${APP_VERSION}
+    image: harbor.treok.eu/devops_compcs140/monitoring:${APP_VERSION}
     ports:
       - "8200:8000"
     depends_on:
