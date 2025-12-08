@@ -8,7 +8,7 @@ stages:
 variables:
   HARBOR_URL: "harbor.treok.eu"
   PROJECT: "devops_compcs140"
-  TAG: "$CI_COMMIT_REF_NAME"   # or temporary tag
+  TAG: "$CI_COMMIT_REF_NAME"   
   APP_VERSION: "$TAG"
   ACTIVE_BACKEND: "blue"
   DOCKER_HOST: "tcp://docker:2375"
