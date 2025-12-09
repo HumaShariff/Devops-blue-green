@@ -56,15 +56,16 @@ test:
   dependencies:
     - build
   before_script:
-    - pip install -r service1/requirements.txt
-    - pip install pytest
+    - python -m pip install --upgrade pip
+    - python -m pip install -r service1/requirements.txt
+    - python -m pip install pytest
   script:
     - pytest service1/tests -v
 
 # # =========================
 # # Package Stage
 # # =========================
-# package:
+package:
   stage: package
   image: docker:26
   services:
