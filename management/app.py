@@ -72,14 +72,11 @@ def index():
         active = "blue"
 
     containers = [
-                "devops-gateway-1",
-                "devops-monitoring-1",
-                "devops-management-1",
-                "devops-service1_blue-1", 
-                "devops-service2_blue-1", 
-                "devops-service1_green-1", 
-                "devops-service2_green-1", 
-                "devops-storage-1"]
+                "service1_blue", 
+                "service2_blue", 
+                "service1_green", 
+                "service2_green", 
+                "storage"]
 
     stats = {}
     last_alive_times = {}
@@ -169,7 +166,7 @@ def discard_old():
     except FileNotFoundError:
         active = "blue"
     old = "green" if active == "blue" else "blue"
-    container_name = f"devops-service1_{old}-1"
+    container_name = f"service1_{old}"
     try:
         c = client.containers.get(container_name)
         c.stop()
@@ -228,7 +225,7 @@ def forward_to_active(endpoint, method="GET"):
     except FileNotFoundError:
         active = "blue"
 
-    target = f"http://devops-service1_{active}-1:5000/{endpoint.lstrip('/')}"
+    target = f"http://service1_{active}:5000/{endpoint.lstrip('/')}"
     try:
         start_time = time.time()
         if method.upper() == "GET":
@@ -244,7 +241,7 @@ def forward_to_active(endpoint, method="GET"):
         RESPONSE_TIMES[endpoint] = RESPONSE_TIMES[endpoint][-MAX_HISTORY:]
 
         # record last alive for container
-        container_name = f"devops-service1_{active}-1"
+        container_name = f"service1_{active}"
         LAST_ALIVE[container_name] = datetime.datetime.utcnow()
 
         return Response(r.content, status=r.status_code, mimetype=r.headers.get("Content-Type", "text/plain"))

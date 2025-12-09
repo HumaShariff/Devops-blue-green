@@ -4,9 +4,8 @@ FROM python:3.12-slim
 # Set the working directory inside the container
 WORKDIR /app
 
-# Update OS packages and install pip
 RUN apt-get update && \
-    apt-get install -y python3-pip && \
+    apt-get install -y --no-install-recommends && \
     rm -rf /var/lib/apt/lists/*
 
 # Copy only requirements first to leverage Docker cache
