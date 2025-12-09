@@ -1,0 +1,63 @@
+# LLM Usage Report (llm.txt)
+
+## 1. Used LLM Tools
+
+During the completion of this assignment, the following large language model tools were used:
+
+* **ChatGPT (GPT-5.1)**
+* **Claude (Sonnet 4.5)**
+
+These tools were consulted at various stages of the work to support writing, debugging, and clarification of concepts.
+
+## 2.  Reason to Use LLM
+
+The primary motivations for using LLM tools included:
+
+* To improve clarity and grammatical accuracy in written explanations.
+* To brainstorm implementation ideas and explore alternative design approaches.
+* To troubleshoot coding issues and receive debugging guidance.
+* To ensure that the structure of the report and assignment followed academic expectations.
+
+Using these tools helped streamline the workflow and reduce time spent searching for fragmented information from multiple sources.
+
+## 3. How and Why LLM Helped
+
+LLM tools assisted in several concrete ways:
+
+### **a. Code Refinement**
+
+* Suggested cleaner, more efficient code.
+* Helped refactor functions to improve readability and maintainability.
+* Recommended best practices 
+
+### **b. Debugging and Error Resolution**
+
+* Identified potential syntax or logical errors.
+* Provided explanations for dependency conflicts.
+* Suggested step-by-step troubleshooting methods.
+
+
+Overall, the tools supported learning and improved efficiency while maintaining my ownership over the final implementation.
+
+## 4. Mistakes Made by LLM
+
+Although helpful, LLM tools were not flawless. Examples of common mistakes include:
+
+* Providing code suggestions that did not fully match the required environment or dependencies.
+* Occasionally generating incorrect or incomplete code snippets.
+* Giving explanations that appeared confident but were technically inaccurate on closer inspection.
+* Misinterpreting ambiguous prompts, requiring rephrasing or additional context.
+
+These limitations required careful validation and manual correction.
+
+## 5. What LLM Could Not Provide
+
+Certain things were beyond the capability of the LLM tools:
+
+* Exact details specific to my local development environment (e.g., file paths, local package versions).
+* Fully accurate debugging of issues that depended on runtime behavior not visible in the provided prompt.
+* Project-specific logic decisions that required domain knowledge or subjective reasoning.
+* Complete and production-ready solutions without manual review, adjustment, and real testing.
+
+
+
