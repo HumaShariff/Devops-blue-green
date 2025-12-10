@@ -1,10 +1,13 @@
-from flask import Flask, render_template, request, redirect, url_for, session, jsonify, Response
+from flask import Flask, render_template, request, redirect, url_for, session, Response
 import requests
 import os
 import docker
 import datetime
 import humanize
 import jwt
+import psutil
+import time
+import re
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "mysecretkey")
@@ -16,7 +19,16 @@ ACTIVE_VERSION_FILE = "/tmp/active_version.txt"
 JWT_SECRET = os.environ.get("JWT_SECRET", "supersecret")
 JWT_ALGO = "HS256"
 
+# Docker client
 client = docker.DockerClient(base_url='unix://var/run/docker.sock')
+
+# -------------------------
+# Global monitoring state
+# -------------------------
+RESPONSE_TIMES = {}  # {"endpoint_name": [times_in_ms]}
+MAX_HISTORY = 50
+
+LAST_ALIVE = {}  # {"container_name": datetime.datetime}
 
 # -------------------------
 # Login / Logout
@@ -39,44 +51,56 @@ def logout():
     return redirect(url_for("login"))
 
 # -------------------------
-# Management console
+# Dashboard
 # -------------------------
 @app.route("/")
 def index():
     if not session.get("logged_in"):
         return redirect(url_for("login"))
 
-    # Fetch logs
+    # logs from storage
     try:
-        logs = requests.get(f"{STORAGE_URL}/log").text
+        logs_text = requests.get(f"{STORAGE_URL}/log", timeout=3).text
     except Exception as e:
-        logs = f"Error fetching logs: {e}"
+        logs_text = f"Error fetching logs: {e}"
 
-    # Active version
+    # active version
     try:
         with open(ACTIVE_VERSION_FILE, "r") as f:
             active = f.read().strip()
     except FileNotFoundError:
         active = "blue"
 
-    # Monitoring info
     containers = [
-                  "devops-gateway-1",
-                  "devops-monitoring-1",
-                  "devops-management-1",
-                  "devops-service1_blue-1", 
-                  "devops-service2_blue-1", 
-                  "devops-service1_green-1", 
-                  "devops-service2_green-1", 
-                  "devops-storage-1"]
+                "service1_blue", 
+                "service2_blue", 
+                "service1_green", 
+                "service2_green", 
+                "storage"]
+
     stats = {}
-    for c in containers:
-        stats[c] = get_container_stats(c)
+    last_alive_times = {}
+    for name in containers:
+        stats[name] = get_container_cpu_memory(name)
+        last_alive_times[name] = get_last_alive_status(name)
 
-    # Log sizes
-    log_sizes = get_log_sizes()
+    log_sizes = get_log_sizes_by_forwarding()
+    host_cpu = get_host_cpu_percent()
 
-    return render_template("index.html", logs=logs, active_version=active, stats=stats, log_sizes=log_sizes)
+    status_stats = get_response_time_stats("status")
+    log_stats = get_response_time_stats("log")
+
+    return render_template(
+        "index.html",
+        logs=logs_text,
+        active_version=active,
+        stats=stats,
+        log_sizes=log_sizes,
+        host_cpu=host_cpu,
+        status_stats=status_stats,
+        log_stats=log_stats,
+        last_alive_times=last_alive_times
+    )
 
 # -------------------------
 # Actions
@@ -85,16 +109,48 @@ def index():
 def switch_version():
     if not session.get("logged_in"):
         return redirect(url_for("login"))
-
-    # Read current active version
     try:
         with open(ACTIVE_VERSION_FILE, "r") as f:
             current = f.read().strip()
     except FileNotFoundError:
         current = "blue"
-
-    # Switch version
     new_version = "green" if current == "blue" else "blue"
+
+    # -------------------------
+    # Data migration in storage
+    # -------------------------
+    try:
+        r = requests.get(f"{STORAGE_URL}/log", timeout=5)
+        logs = r.text.splitlines()
+    except Exception as e:
+        logs = []
+        print(f"Warning: Could not fetch logs from storage: {e}")
+
+    migrated_logs = []
+
+    for line in logs:
+            if new_version == "blue":
+                # Convert minutes → hours
+                match_minutes = re.search(r"(\d+(\.\d+)?) minutes", line)
+                if match_minutes:
+                    val = float(match_minutes.group(1))
+                    hours = round(val / 60, 2)
+                    line = re.sub(r"(\d+(\.\d+)?) minutes", f"{hours} hours", line)
+            else:  # new_version == "green"
+                # Convert hours → minutes
+                match_hours = re.search(r"(\d+(\.\d+)?) hours", line)
+                if match_hours:
+                    val = float(match_hours.group(1))
+                    minutes = round(val * 60, 2)
+                    line = re.sub(r"(\d+(\.\d+)?) hours", f"{minutes} minutes", line)
+
+            migrated_logs.append(line)
+
+    # Reset storage and write all logs at once
+    requests.post(f"{STORAGE_URL}/reset", timeout=3)
+    all_logs = "\n".join(migrated_logs)
+    requests.post(f"{STORAGE_URL}/log", data=all_logs.encode("utf-8"), timeout=3)
+
     with open(ACTIVE_VERSION_FILE, "w") as f:
         f.write(new_version)
 
@@ -104,34 +160,32 @@ def switch_version():
 def discard_old():
     if not session.get("logged_in"):
         return redirect(url_for("login"))
-
     try:
         with open(ACTIVE_VERSION_FILE, "r") as f:
             active = f.read().strip()
     except FileNotFoundError:
         active = "blue"
-
     old = "green" if active == "blue" else "blue"
-    container_name = f"devops-service1_{old}-1"
+    container_name = f"service1_{old}"
     try:
-        container = client.containers.get(container_name)
-        container.stop()
-        return redirect(url_for("index"))
+        c = client.containers.get(container_name)
+        c.stop()
     except docker.errors.NotFound:
-        return redirect(url_for("index"))
+        pass
+    return redirect(url_for("index"))
 
 @app.route("/reset_log", methods=["POST"])
 def reset_log():
     if not session.get("logged_in"):
         return redirect(url_for("login"))
     try:
-        requests.post(f"{STORAGE_URL}/reset")
-        return redirect(url_for("index"))
+        requests.post(f"{STORAGE_URL}/reset", timeout=3)
     except Exception as e:
         return f"Error resetting log: {e}"
+    return redirect(url_for("index"))
 
 # -------------------------
-# JWT Token
+# JWT
 # -------------------------
 @app.route("/get_token")
 def get_token():
@@ -145,7 +199,7 @@ def get_token():
     return f"JWT token: {token}"
 
 # -------------------------
-# Routes
+# Proxy endpoints
 # -------------------------
 @app.route("/status", methods=["GET", "POST"])
 def status_proxy():
@@ -155,66 +209,90 @@ def status_proxy():
 def log_proxy():
     return forward_to_active("log", method=request.method)
 
-# -------------------------
-# Helper function
-# -------------------------
 def forward_to_active(endpoint, method="GET"):
-    # JWT check
     auth = request.headers.get("Authorization", "")
     if not auth.startswith("Bearer "):
         return "Unauthorized: Missing token", 401
-
     token = auth.split()[1]
     try:
         jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGO])
-    except jwt.ExpiredSignatureError:
-        return "Token expired", 401
-    except jwt.InvalidTokenError:
+    except Exception:
         return "Invalid token", 401
 
-    # Determine active container
-    active_version = "blue"
     try:
         with open(ACTIVE_VERSION_FILE, "r") as f:
-            active_version = f.read().strip()
+            active = f.read().strip()
     except FileNotFoundError:
-        pass
+        active = "blue"
 
-    container_host = f"devops-service1_{active_version}-1"
-
-    # Forward request
-    url = f"http://{container_host}:5000/{endpoint.lstrip('/')}"
+    target = f"http://service1_{active}:5000/{endpoint.lstrip('/')}"
     try:
+        start_time = time.time()
         if method.upper() == "GET":
-            resp = requests.get(url, timeout=5)
-        elif method.upper() == "POST":
-            resp = requests.post(url, data=request.data, timeout=5)
+            r = requests.get(target, timeout=5)
         else:
-            return "Method not supported", 405
+            r = requests.post(target, data=request.data, timeout=5)
+        elapsed_ms = (time.time() - start_time) * 1000
 
-        return Response(resp.content,
-                        status=resp.status_code,
-                        mimetype=resp.headers.get("Content-Type", "text/plain"))
-    except requests.exceptions.RequestException as e:
+        # record response time
+        if endpoint not in RESPONSE_TIMES:
+            RESPONSE_TIMES[endpoint] = []
+        RESPONSE_TIMES[endpoint].append(elapsed_ms)
+        RESPONSE_TIMES[endpoint] = RESPONSE_TIMES[endpoint][-MAX_HISTORY:]
+
+        # record last alive for container
+        container_name = f"service1_{active}"
+        LAST_ALIVE[container_name] = datetime.datetime.utcnow()
+
+        return Response(r.content, status=r.status_code, mimetype=r.headers.get("Content-Type", "text/plain"))
+    except Exception as e:
         return f"Error contacting active service: {e}", 502
 
+def get_response_time_stats(endpoint):
+    times = RESPONSE_TIMES.get(endpoint, [])
+    if not times:
+        return {"min": None, "max": None, "avg": None}
+    return {
+        "min": round(min(times), 2),
+        "max": round(max(times), 2),
+        "avg": round(sum(times)/len(times), 2)
+    }
 
-def get_container_stats(container_name):
+# -------------------------
+# Monitoring helpers
+# -------------------------
+def get_container_cpu_memory(container_name):
+    """
+    Returns CPU %, memory usage/limit, and uptime.
+    Shows 'Stopped' if container is not running.
+    """
     try:
         container = client.containers.get(container_name)
-        started_at = container.attrs["State"]["StartedAt"]
-        started_at_dt = datetime.datetime.fromisoformat(started_at.replace("Z", "+00:00"))
-        uptime = datetime.datetime.now(datetime.timezone.utc) - started_at_dt
+
+        # Uptime calculation with Stopped check
+        if container.status != "running":
+            uptime = "Stopped"
+        else:
+            started = container.attrs["State"].get("StartedAt", None)
+            if started:
+                started_dt = datetime.datetime.fromisoformat(started.replace("Z", "+00:00"))
+                uptime = humanize.naturaldelta(datetime.datetime.now(datetime.timezone.utc) - started_dt)
+            else:
+                uptime = "N/A"
+
+        # CPU & Memory stats
         stats = container.stats(stream=False)
         cpu_percent = calculate_cpu_percent(stats)
-        mem_usage = stats["memory_stats"]["usage"] / (1024 * 1024)
-        mem_limit = stats["memory_stats"].get("limit", 0) / (1024 * 1024)
+        mem_usage = stats.get("memory_stats", {}).get("usage", 0) / (1024*1024)
+        mem_limit = stats.get("memory_stats", {}).get("limit", 0) / (1024*1024)
+
         return {
-            "uptime": humanize.naturaldelta(uptime),
             "cpu_percent": round(cpu_percent, 2),
             "mem_usage": round(mem_usage, 2),
-            "mem_limit": round(mem_limit, 2)
+            "mem_limit": round(mem_limit, 2),
+            "uptime": uptime
         }
+
     except docker.errors.NotFound:
         return {"error": "Container not found"}
     except Exception as e:
@@ -222,26 +300,41 @@ def get_container_stats(container_name):
 
 def calculate_cpu_percent(stats):
     try:
-        cpu_delta = stats["cpu_stats"]["cpu_usage"]["total_usage"] - stats["precpu_stats"]["cpu_usage"]["total_usage"]
-        system_delta = stats["cpu_stats"]["system_cpu_usage"] - stats["precpu_stats"]["system_cpu_usage"]
-        cpu_percent = 0.0
-        percpu = stats["cpu_stats"]["cpu_usage"].get("percpu_usage", [1])
-        if system_delta > 0.0 and cpu_delta > 0.0:
-            cpu_percent = (cpu_delta / system_delta) * len(percpu) * 100.0
-        return cpu_percent
-    except KeyError:
+        cpu_total = stats["cpu_stats"]["cpu_usage"]["total_usage"]
+        precpu_total = stats["precpu_stats"]["cpu_usage"].get("total_usage",0)
+        cpu_delta = cpu_total - precpu_total
+        system_total = stats["cpu_stats"].get("system_cpu_usage",0)
+        precpu_system = stats["precpu_stats"].get("system_cpu_usage",0)
+        percpu = stats["cpu_stats"]["cpu_usage"].get("percpu_usage",[])
+        cpus = len(percpu) if isinstance(percpu,list) and len(percpu)>0 else 1
+        if system_delta>0 and cpu_delta>0:
+            return (cpu_delta/system_delta)*cpus*100.0
+        return 0.0
+    except:
         return 0.0
 
-def get_log_sizes():
+def get_last_alive_status(container_name):
+    last = LAST_ALIVE.get(container_name)
+    if not last:
+        return "Never"
+    delta = datetime.datetime.utcnow() - last
+    if delta.total_seconds() < 10:
+        return "Living"
+    return humanize.naturaldelta(delta) + " ago"
+
+def get_log_sizes_by_forwarding():
     try:
-        r = requests.get(f"{STORAGE_URL}/log")
-        logs_text = r.text
-        if not logs_text.strip():
-            return {}
-        total_size = len(logs_text.encode("utf-8"))
-        return {"storage_logs.txt": total_size}
-    except Exception:
+        r = requests.get(f"{STORAGE_URL}/log", timeout=3)
+        text = r.text or ""
+        return {"storage_logs.txt": len(text.encode("utf-8"))}
+    except:
         return {}
+
+def get_host_cpu_percent():
+    try:
+        return round(psutil.cpu_percent(interval=0.1),1)
+    except:
+        return 0.0
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8000)

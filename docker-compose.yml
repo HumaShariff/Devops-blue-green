@@ -2,31 +2,40 @@ version: "3.9"
 
 services:
   storage:
-    image: harbor.treok.eu/devops_compcs140/compse140-test-storage:${APP_VERSION}
+    container_name: storage
+    image: harbor.treok.eu/devops_compcs140/storage:${APP_VERSION}
+    platform: linux/amd64
     ports:
       - "5100:5000"
     volumes:
       - storage_data:/app/logs
 
   service1_blue:
-    image: harbor.treok.eu/devops_compcs140/compse140-test-service1:project1.0
+    container_name: service1_blue
+    image: harbor.treok.eu/devops_compcs140/service1:${APP_VERSION}
+    platform: linux/amd64
     depends_on:
-      - service2_blue
+      - service2_${ACTIVE_BACKEND}
       - storage
     environment:
-      SERVICE2_HOST: service2_blue
+      SERVICE2_HOST: service2_${ACTIVE_BACKEND}
     ports:
       - "5101:5000"
 
   service2_blue:
-    image: harbor.treok.eu/devops_compcs140/compse140-test-service2:project1.0
+    container_name: service2_blue
+    image: harbor.treok.eu/devops_compcs140/service2:${APP_VERSION}
+    platform: linux/amd64
     ports:
       - "5201:5000"
     depends_on:
       - storage
 
   service1_green:
-    image: harbor.treok.eu/devops_compcs140/compse140-test-service1:project1.1
+    container_name: service1_green
+    image: harbor.treok.eu/devops_compcs140/service1:${APP_VERSION}
+    platform: linux/amd64
+    profiles: ["green"]
     depends_on:
       - service2_green
       - storage
@@ -36,18 +45,23 @@ services:
       - "5102:5000"
 
   service2_green:
-    image: harbor.treok.eu/devops_compcs140/compse140-test-service2:project1.1
+    container_name: service2_green
+    image: harbor.treok.eu/devops_compcs140/service2:${APP_VERSION}
+    platform: linux/amd64
+    profiles: ["green"]
     ports:
       - "5202:5000"
     depends_on:
       - storage
 
   management:
-    image: harbor.treok.eu/devops_compcs140/compse140-test-management:${APP_VERSION}
+    container_name: management
+    image: harbor.treok.eu/devops_compcs140/management:${APP_VERSION}
+    platform: linux/amd64
     depends_on:
       - storage
       - service1_blue
-      - service1_green
+      #- service1_green
     environment:
       MGMT_USER: ${MGMT_USER}
       SECRET_KEY: ${SECRET_KEY}
@@ -55,14 +69,16 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
 
   gateway:
-    image: harbor.treok.eu/devops_compcs140/compse140-test-gateway:${APP_VERSION}
+    container_name: gateway
+    image: harbor.treok.eu/devops_compcs140/gateway:${APP_VERSION}
+    platform: linux/amd64
     ports:
       - "8198:80"
       - "8199:8199"
     depends_on:
       - management
       - service1_blue
-      - service1_green
+      #- service1_green
       - storage
     environment:
       ACTIVE_BACKEND: ${ACTIVE_BACKEND}
@@ -70,13 +86,15 @@ services:
       - ./gateway/certs:/etc/letsencrypt
 
   monitoring:
-    image: harbor.treok.eu/devops_compcs140/compse140-test-monitoring:${APP_VERSION}
+    container_name: monitoring
+    image: harbor.treok.eu/devops_compcs140/monitoring:${APP_VERSION}
+    platform: linux/amd64
     ports:
       - "8200:8000"
     depends_on:
       - storage
       - service1_blue
-      - service1_green
+      #- service1_green
 
 volumes:
   storage_data:

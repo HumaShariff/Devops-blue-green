@@ -1,5 +1,6 @@
 stages:
   - build
+  - test
   - package
   - smoke_test
   - deploy
@@ -7,7 +8,7 @@ stages:
 variables:
   HARBOR_URL: "harbor.treok.eu"
   PROJECT: "devops_compcs140"
-  TAG: "$CI_COMMIT_REF_NAME"   # or temporary tag
+  TAG: "$CI_COMMIT_REF_NAME"   
   APP_VERSION: "$TAG"
   ACTIVE_BACKEND: "blue"
   DOCKER_HOST: "tcp://docker:2375"
@@ -15,98 +16,143 @@ variables:
   DOCKER_DRIVER: overlay2
 
 before_script:
-  - echo "$HARBOR_PASSWORD" | docker login $HARBOR_URL -u "$HARBOR_USERNAME" --password-stdin
+  - export ACTIVE_BACKEND=${TAG/project1.0/blue}
+  - export ACTIVE_BACKEND=${ACTIVE_BACKEND/project1.1/green}
+  - echo $ACTIVE_BACKEND
 
-# ====================
+# # ====================
 # Build Stage
 # ====================
 build:
   stage: build
-  image: docker:26
-  services:
-    - docker:26-dind
+  #image: alpine:latest
+  image: python:3.11
   script:
-    - until docker info; do echo "Waiting for Docker daemon..."; sleep 1; done
-    # Build blue and green images for service1 and service2
-    - docker build -t $HARBOR_URL/$PROJECT/compse140-test-storage:$TAG ./storage
-    - docker build -t $HARBOR_URL/$PROJECT/compse140-test-service1:project1.0 ./service1
-    - docker build -t $HARBOR_URL/$PROJECT/compse140-test-service1:project1.1 ./service1
-    - docker build -t $HARBOR_URL/$PROJECT/compse140-test-service2:project1.0 ./service2
-    - docker build -t $HARBOR_URL/$PROJECT/compse140-test-service2:project1.1 ./service2
-    - docker build -t $HARBOR_URL/$PROJECT/compse140-test-management:$TAG ./management
-    - docker build -t $HARBOR_URL/$PROJECT/compse140-test-monitoring:$TAG ./monitoring
-    - docker build -t $HARBOR_URL/$PROJECT/compse140-test-gateway:$TAG ./gateway
-  after_script:
-    - echo "Cleaning up Docker images after build..."
-    - docker system prune -f
+    - echo "Preparing build artifacts..."
+    - python3 -m compileall service1
+    - python3 -m compileall service2
+    - python3 -m compileall storage
+    - python3 -m compileall management
+    - python3 -m compileall monitoring
+    - python3 -m compileall gateway
 
-# ====================
-# Package Stage (Push to Harbor)
-# ====================
+    # Verify compiled bytecode
+    - find service1 service2 storage management monitoring gateway -name "__pycache__"
+    - echo "Build artifacts prepared."
+
+  artifacts:
+    paths:
+      - service1/__pycache__/
+      - service2/__pycache__/
+      - storage/__pycache__/
+      - management/__pycache__/
+      - monitoring/__pycache__/
+      - gateway/__pycache__/
+    expire_in: 1 week
+
+# # ====================
+# # Test Stage
+# # ====================
+test:
+  stage: test
+  image: python:3.12
+  variables:
+    PYTHONPATH: "${CI_PROJECT_DIR}"
+  dependencies:
+    - build
+  before_script:
+    - python -m pip install --upgrade pip
+    - python -m pip install -r service1/requirements.txt
+    - python -m pip install pytest
+  script:
+    - pytest service1/tests -v
+
+# # =========================
+# # Package Stage
+# # =========================
 package:
   stage: package
   image: docker:26
   services:
     - docker:26-dind
+  variables:
+    DOCKER_HOST: "tcp://docker:2375"
+    DOCKER_TLS_CERTDIR: ""
+    PYTHONPATH: "${CI_PROJECT_DIR}"
+  dependencies:
+    - build
   script:
-    - docker push $HARBOR_URL/$PROJECT/compse140-test-storage:$TAG
-    - docker push $HARBOR_URL/$PROJECT/compse140-test-service1:project1.0
-    - docker push $HARBOR_URL/$PROJECT/compse140-test-service1:project1.1
-    - docker push $HARBOR_URL/$PROJECT/compse140-test-service2:project1.0
-    - docker push $HARBOR_URL/$PROJECT/compse140-test-service2:project1.1
-    - docker push $HARBOR_URL/$PROJECT/compse140-test-management:$TAG
-    - docker push $HARBOR_URL/$PROJECT/compse140-test-monitoring:$TAG
-    - docker push $HARBOR_URL/$PROJECT/compse140-test-gateway:$TAG
+    - until docker info; do echo "Waiting for Docker daemon..."; sleep 1; done
+
+    - echo "$HARBOR_PASSWORD" | docker login $HARBOR_URL -u "$HARBOR_USERNAME" --password-stdin
+    # Build Docker images for all services
+    - docker build -t $HARBOR_URL/$PROJECT/storage:$TAG --platform linux/amd64 --push ./storage
+    - docker build -t $HARBOR_URL/$PROJECT/service1:$TAG --platform linux/amd64 --push ./service1
+    - docker build -t $HARBOR_URL/$PROJECT/service2:$TAG --platform linux/amd64 --push ./service2
+    - docker build -t $HARBOR_URL/$PROJECT/management:$TAG --platform linux/amd64 --push ./management
+    - docker build -t $HARBOR_URL/$PROJECT/monitoring:$TAG --platform linux/amd64 --push ./monitoring
+    - docker build -t $HARBOR_URL/$PROJECT/gateway:$TAG --platform linux/amd64 --push ./gateway
+
   after_script:
-    - echo "Cleaning up Docker images after packaging..."
     - docker system prune -f
 
-# ====================
+# # ====================
 # # Smoke Test Stage
 # # ====================
-# smoke_test:
-#   stage: smoke_test
-#   image: docker:26
-#   services:
-#     - docker:26-dind
-#   script:
-#     - docker network create smoke_net || true
-#     - docker run -d --name storage_test --network smoke_net $HARBOR_URL/$PROJECT/compse140-test-storage:$TAG
-#     - docker run -d --name service1_blue_test --network smoke_net $HARBOR_URL/$PROJECT/compse140-test-service1:project1.0
-#     - docker run -d --name service1_green_test --network smoke_net $HARBOR_URL/$PROJECT/compse140-test-service1:project1.1
-#     - docker run -d --name service2_blue_test --network smoke_net $HARBOR_URL/$PROJECT/compse140-test-service2:project1.0
-#     - docker run -d --name service2_green_test --network smoke_net $HARBOR_URL/$PROJECT/compse140-test-service2:project1.1
-#     - docker run -d --name management_test --network smoke_net $HARBOR_URL/$PROJECT/compse140-test-management:$TAG
-#     - sleep 5
-#     - echo "Smoke test completed."
-#   after_script:
-#     - docker rm -f storage_test service1_blue_test service1_green_test service2_blue_test service2_green_test management_test || true
-#     - docker system prune -f
+smoke_test:
+  stage: smoke_test
+  image: docker:26
+  services:
+    - docker:26-dind
+  script:
+    - until docker info; do echo "Waiting for Docker daemon..."; sleep 1; done
+    - echo "$HARBOR_PASSWORD" | docker login $HARBOR_URL -u "$HARBOR_USERNAME" --password-stdin
+    - docker network create smoke_net || true
+    - docker run -d --name storage_test --network smoke_net $HARBOR_URL/$PROJECT/storage:$TAG
+    - docker run -d --name service1_test --network smoke_net $HARBOR_URL/$PROJECT/service1:$TAG
+    - docker run -d --name service2_test --network smoke_net $HARBOR_URL/$PROJECT/service2:$TAG
+    - docker run -d --name management_test --network smoke_net $HARBOR_URL/$PROJECT/management:$TAG
+    - docker run -d --name monitoring_test --network smoke_net $HARBOR_URL/$PROJECT/monitoring:$TAG
+    - docker run -d --name gateway_test --network smoke_net $HARBOR_URL/$PROJECT/gateway:$TAG
+    - sleep 5
+    - echo "Smoke test completed."
+  after_script:
+    - docker rm -f storage_test storage_test service1_test service2_test management_test monitoring_test gateway_test || true
+    - docker system prune -f
 
 # ====================
 # Deploy Stage
 # ====================
 deploy:
   stage: deploy
-  image: alpine:3.18
+  image: docker:26
+  services:
+    - docker:26-dind
   variables:
+    DOCKER_HOST: "tcp://docker:2375"
+    DOCKER_TLS_CERTDIR: ""
+    PYTHONPATH: "${CI_PROJECT_DIR}"
     SHELL: /bin/sh
   before_script:
-    - apk add --no-cache openssh bash
+    - apk add --no-cache bash openssh-client
     - mkdir -p ~/.ssh
     - echo "$SSH_PRIVATE_KEY" | base64 -d > ~/.ssh/id_rsa
     - chmod 600 ~/.ssh/id_rsa
     - eval "$(ssh-agent -s)"
     - ssh-add ~/.ssh/id_rsa
+    - echo "$HARBOR_PASSWORD" | docker login $HARBOR_URL -u "$HARBOR_USERNAME" --password-stdin
 
   script:
     - ssh -o StrictHostKeyChecking=no ubuntu@86.50.22.0 "
         echo 'Connected to VM, starting deployment...' &&
+        cd ~/project &&
+        git fetch origin &&
+        git checkout $TAG &&
+        git pull origin $TAG &&
         docker login $HARBOR_URL -u $HARBOR_USERNAME -p $HARBOR_PASSWORD &&
         export APP_VERSION=$TAG &&
         export ACTIVE_BACKEND=$ACTIVE_BACKEND &&
-        cd ~/project &&
-        docker-compose pull &&
-        docker-compose up -d &&
+        docker-compose --profile $ACTIVE_BACKEND pull &&
+        docker-compose --profile $ACTIVE_BACKEND up -d &&
         echo 'Deployment completed successfully.'
       "
