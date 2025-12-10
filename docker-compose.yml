@@ -3,7 +3,7 @@ version: "3.9"
 services:
   storage:
     container_name: storage
-    image: harbor.treok.eu/devops_compcs140/storage:${APP_VERSION}
+    image: harbor.treok.eu/devops_compcs140/storage:project1.0
     platform: linux/amd64
     ports:
       - "5100:5000"
@@ -12,7 +12,7 @@ services:
 
   service1_blue:
     container_name: service1_blue
-    image: harbor.treok.eu/devops_compcs140/service1:${APP_VERSION}
+    image: harbor.treok.eu/devops_compcs140/service1:project1.0
     platform: linux/amd64
     depends_on:
       - service2_${ACTIVE_BACKEND}
@@ -24,7 +24,7 @@ services:
 
   service2_blue:
     container_name: service2_blue
-    image: harbor.treok.eu/devops_compcs140/service2:${APP_VERSION}
+    image: harbor.treok.eu/devops_compcs140/service2:project1.0
     platform: linux/amd64
     ports:
       - "5201:5000"
@@ -33,9 +33,9 @@ services:
 
   service1_green:
     container_name: service1_green
-    image: harbor.treok.eu/devops_compcs140/service1:${APP_VERSION}
+    image: harbor.treok.eu/devops_compcs140/service1:project1.1
     platform: linux/amd64
-    profiles: ["green"]
+    profiles: ["project1.1"]
     depends_on:
       - service2_green
       - storage
@@ -46,9 +46,9 @@ services:
 
   service2_green:
     container_name: service2_green
-    image: harbor.treok.eu/devops_compcs140/service2:${APP_VERSION}
+    image: harbor.treok.eu/devops_compcs140/service2:project1.1
     platform: linux/amd64
-    profiles: ["green"]
+    profiles: ["project1.1"]
     ports:
       - "5202:5000"
     depends_on:
@@ -56,7 +56,7 @@ services:
 
   management:
     container_name: management
-    image: harbor.treok.eu/devops_compcs140/management:${APP_VERSION}
+    image: harbor.treok.eu/devops_compcs140/management:project1.0
     platform: linux/amd64
     depends_on:
       - storage
@@ -70,7 +70,7 @@ services:
 
   gateway:
     container_name: gateway
-    image: harbor.treok.eu/devops_compcs140/gateway:${APP_VERSION}
+    image: harbor.treok.eu/devops_compcs140/gateway:project1.0
     platform: linux/amd64
     ports:
       - "8198:80"
@@ -87,7 +87,7 @@ services:
 
   monitoring:
     container_name: monitoring
-    image: harbor.treok.eu/devops_compcs140/monitoring:${APP_VERSION}
+    image: harbor.treok.eu/devops_compcs140/monitoring:project1.0
     platform: linux/amd64
     ports:
       - "8200:8000"
