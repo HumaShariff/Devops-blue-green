@@ -15,6 +15,7 @@ variables:
   DOCKER_TLS_CERTDIR: ""
   DOCKER_DRIVER: overlay2
 
+
 before_script:
   - export ACTIVE_BACKEND=${TAG/project1.0/blue}
   - export ACTIVE_BACKEND=${ACTIVE_BACKEND/project1.1/green}
