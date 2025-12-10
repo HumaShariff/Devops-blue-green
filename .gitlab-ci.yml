@@ -157,7 +157,8 @@ deploy:
         docker login $HARBOR_URL -u $HARBOR_USERNAME -p $HARBOR_PASSWORD &&
         export APP_VERSION=$TAG &&
         export ACTIVE_BACKEND=$ACTIVE_BACKEND &&
-        docker-compose --profile $ACTIVE_BACKEND pull &&
-        docker-compose --profile $ACTIVE_BACKEND up -d &&
+        docker-compose --profile $TAG down &&
+        docker-compose --profile $TAG pull &&
+        docker-compose --profile $TAG up -d &&
         echo 'Deployment completed successfully.'
       "

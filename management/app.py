@@ -75,8 +75,7 @@ def index():
                 "service1_blue", 
                 "service2_blue", 
                 "service1_green", 
-                "service2_green", 
-                "storage"]
+                "service2_green"]
 
     stats = {}
     last_alive_times = {}
